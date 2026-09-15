@@ -1588,6 +1588,31 @@ static func bake_fsb_markers_from_scene() -> Dictionary:
 ## the seat the MODEL was placed at (kept since 2026-08-04); seat with GameWorld.floor_y
 ## from it, never surface_y. Call only after place_firebase_main - before it, the seat is
 ## unknown and the marker Y falls back to center.y, which is not the model's ground.
+## One curated marker (FSB_MARKER_KEYS) in world space, or ZERO when the bake lacks it.
+## The marker's Y is the floor it was authored on; seat with GameWorld.floor_y from it.
+static func fsb_marker_world(center: Vector3, key: String) -> Vector3:
+	_ensure_fsb_markers()
+	if not _fsb_markers.has(key):
+		return Vector3.ZERO
+	return _fsb_marker_origin(center) + (_fsb_markers[key] as Vector3)
+
+
+## The centroid of every work_<wtype> marker in world space, or ZERO when there is none.
+static func fsb_work_marker_world(center: Vector3, wtype: String) -> Vector3:
+	_ensure_fsb_markers()
+	var sum: Vector3 = Vector3.ZERO
+	var n: int = 0
+	for entry_any in _fsb_work_markers:
+		var e: Array = entry_any
+		if str(e[1]) != wtype:
+			continue
+		sum += e[0] as Vector3
+		n += 1
+	if n == 0:
+		return Vector3.ZERO
+	return _fsb_marker_origin(center) + sum / float(n)
+
+
 static func fsb_garrison_plan(center: Vector3) -> Dictionary:
 	_ensure_fsb_markers()
 	var origin: Vector3 = _fsb_marker_origin(center)

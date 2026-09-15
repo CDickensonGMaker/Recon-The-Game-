@@ -29,6 +29,27 @@ const RADII := {
 
 ## Teams: 0 = friendly (player/allies), 1 = enemy.
 var radius_multiplier: float = 1.0  ## monsoon masking hook
+## Weather only ever MASKS (mission_weather.gd WEATHER noise <= 1.0). The sleep-radius
+## invariant below is computed against this ceiling; a multiplier above it is clamped at emit.
+const RADIUS_MULTIPLIER_MAX: float = 1.0
+var _ceiling_warned: bool = false
+
+
+## THE SLEEP-RADIUS INVARIANT. A man past TerrainWatchdog.SUSPEND_DIST has no ears (physics
+## off), so no sound may carry that far or the sleeping ring is a hearing gap rather than
+## silence. Loudest table radius times the weather ceiling; overrides are clamped by the same
+## line in emit_noise. tests/test_sleep_radius.gd holds it.
+static func loudest_radius() -> float:
+	var loudest: float = 0.0
+	for r in RADII.values():
+		loudest = maxf(loudest, float(r))
+	return loudest * RADIUS_MULTIPLIER_MAX
+
+
+func _ready() -> void:
+	if loudest_radius() >= TerrainWatchdog.SUSPEND_DIST:
+		push_error("[NOISE] loudest radius %.0f m reaches past the %.0f m sleep ring" % [
+			loudest_radius(), TerrainWatchdog.SUSPEND_DIST])
 
 
 func emit_noise(type: int, position: Vector3, source_team: int = 0, radius_override: float = -1.0,
@@ -37,4 +58,10 @@ func emit_noise(type: int, position: Vector3, source_team: int = 0, radius_overr
 	if radius < 0.0:
 		radius = float(RADII.get(type, 10.0))
 	radius *= radius_multiplier
+	if radius >= TerrainWatchdog.SUSPEND_DIST:
+		if not _ceiling_warned:
+			_ceiling_warned = true
+			push_warning("[NOISE] type %d radius %.0f m (x%.2f) clamped under the %.0f m sleep ring" % [
+				type, radius, radius_multiplier, TerrainWatchdog.SUSPEND_DIST])
+		radius = TerrainWatchdog.SUSPEND_DIST - 1.0
 	noise_emitted.emit(type, position, radius, source_team, source)

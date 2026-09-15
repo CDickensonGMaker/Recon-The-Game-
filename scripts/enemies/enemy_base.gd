@@ -88,6 +88,9 @@ func _update_ai_lod(delta: float) -> void:
 		return
 	ai_tier = want
 	AILod.set_tier(self, want)
+	DecisionRingS.push(_ring_what, _ring_cause, _ring_when,
+		&"FAR" if want == AILod.Tier.FAR else &"NEAR",
+		&"lod_demote" if want == AILod.Tier.FAR else &"lod_promote")
 	if want == AILod.Tier.FAR:
 		# A demoted man gives his hot slot back at once - it is the scarce thing, and
 		# the near men are the ones who need it (ADR-026 Part B).
@@ -248,6 +251,9 @@ var target_visible_duration: float = 0.0
 ## Alert tiers + perception. Orthogonal to the goal FSM: the tier gates target
 ## ACQUISITION; once in COMBAT the goal brain takes over.
 enum AlertTier { RELAXED, SUSPICIOUS, ALERT, COMBAT }
+const TIER_NAMES: Array[StringName] = [&"RELAXED", &"SUSPICIOUS", &"ALERT", &"COMBAT"]
+const NOISE_CAUSES: Array[StringName] = [&"heard_steps", &"heard_sprint", &"heard_gunshot",
+	&"heard_suppressed", &"heard_explosion", &"heard_voice", &"heard_impact"]
 var alert_tier: AlertTier = AlertTier.RELAXED
 var awareness: float = 0.0            ## 0..1 visibility accumulator
 const AWARENESS_DECAY: float = 0.25   ## per second when candidate unseen
@@ -370,6 +376,19 @@ var _unstick_flips: int = 0
 ## the one case it exists for. Measured 2026-09-11: assault men at the parapet, velocity
 ## 0.00, objective 48-178 m away, standing there until dawn.
 var _move_intent: float = 0.0
+
+## DECISION RING (observatory, council 2026-09-14 S7): written only in _change_state,
+## _set_tier and the LOD flip; formatted by scripts/dev at read time. Zero per-frame work.
+const DecisionRingS := preload("res://scripts/dev/decision_ring.gd")
+var _ring_what: Array[StringName] = []
+var _ring_cause: Array[StringName] = []
+var _ring_when: PackedFloat64Array = PackedFloat64Array()
+var _last_noise_type: int = -1
+var _last_noise_pos: Vector3 = Vector3.ZERO
+var _last_noise_ms: float = -1e9
+## The witness chain's tail: where the word came from (a corpse, a kill) and when.
+var _chain_from: Vector3 = Vector3.ZERO
+var _chain_ms: float = -1e9
 
 func _update_unstick(delta: float) -> void:
 	if _unstick_t > 0.0:
@@ -1085,6 +1104,24 @@ func _setup_hurtbox() -> void:
 
 ## Meters walked since the last audible footstep (~one stride).
 var _step_accum: float = 0.0
+## Movement as a NoiseBus stimulus for the allies and the observatory. Enemies drop
+## own-team movement in _on_noise_heard, so this never wakes his own side. Throttled
+## per man: every stride of 60 men is ~100 signals/s, the throttle keeps it ~20/s.
+const STEP_NOISE_INTERVAL_MS: int = 3000
+var _step_noise_ms: int = 0
+
+
+func _emit_step_noise(sprinting: bool) -> void:
+	var now_ms: int = Time.get_ticks_msec()
+	if now_ms - _step_noise_ms < STEP_NOISE_INTERVAL_MS:
+		return
+	_step_noise_ms = now_ms
+	if _low_posture:
+		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP, global_position, 1, 3.0, self)
+	elif sprinting:
+		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP_SPRINT, global_position, 1, -1.0, self)
+	else:
+		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP, global_position, 1, -1.0, self)
 
 ## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
 ## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
@@ -1208,7 +1245,10 @@ func _physics_step_enemy_base(delta: float) -> void:
 		_step_accum += Vector2(velocity.x, velocity.z).length() * capped_delta
 		if _step_accum >= 0.85:
 			_step_accum = 0.0
-			AudioManager.play_step_3d(global_position, _low_posture)
+			var flat_speed: float = Vector2(velocity.x, velocity.z).length()
+			var sprinting: bool = flat_speed > move_speed * 1.15
+			AudioManager.play_step_3d(global_position, _low_posture, sprinting)
+			_emit_step_noise(sprinting)
 	CombatManager.ai_usec_move += Time.get_ticks_usec() - t_move
 	CombatManager.ai_usec_anim += (t_move - t_sync) - usec_think
 
@@ -1333,7 +1373,7 @@ func _think_cheap_combat() -> void:
 		target = null
 		_combat_lost_time += _think_interval_current
 		if _combat_lost_time > 8.0:
-			_set_tier(AlertTier.ALERT, false)  # disengage: frees the hot slot for a live fighter
+			_set_tier(AlertTier.ALERT, false, &"lost_target")  # disengage: frees the hot slot for a live fighter
 			return
 	# A cold fighter fires only at what it can actually WITNESS - not a squad-shared target it has
 	# no line to. Without this every man in the camp poured precision fire on a player only one of
@@ -1365,7 +1405,7 @@ func _check_spider_hole() -> void:
 	collision_mask = 1
 	target = player
 	last_known_target_pos = player.global_position
-	_set_tier(AlertTier.COMBAT)
+	_set_tier(AlertTier.COMBAT, true, &"spider_trigger")
 	NoiseBus.emit_noise(NoiseBus.NoiseType.VOICE, global_position, 1, -1.0, self)
 
 
@@ -1421,7 +1461,7 @@ func _squad_sync() -> void:
 			last_known_target_pos = EnemySquad.shared_last_known(squad_id)
 			target_last_seen_time = 0.0
 			if alert_tier < AlertTier.ALERT and global_position.distance_to(last_known_target_pos) < EnemySquad.SHARE_RANGE * 2.0:
-				_set_tier(AlertTier.ALERT)
+				_set_tier(AlertTier.ALERT, true, &"squad_share")
 
 
 func _fov_deg() -> float:
@@ -1489,7 +1529,9 @@ func _witness_check(killer: Node) -> void:
 		if not heard_him_fall and not w._can_witness(global_position):
 			continue
 		w._stamp_contact()
-		w._set_tier(AlertTier.ALERT, false)
+		w._chain_from = global_position
+		w._chain_ms = float(Time.get_ticks_msec())
+		w._set_tier(AlertTier.ALERT, false, &"witnessed_kill")
 		w.awareness = maxf(w.awareness, 0.8)
 		if killer is Node3D:
 			w.last_known_target_pos = (killer as Node3D).global_position
@@ -1524,7 +1566,9 @@ func _check_corpse_discovery() -> void:
 			continue
 		EnemyBase.unreported_corpses.remove_at(i)
 		_stamp_contact()
-		_set_tier(AlertTier.ALERT, false)
+		_chain_from = body
+		_chain_ms = float(Time.get_ticks_msec())
+		_set_tier(AlertTier.ALERT, false, &"corpse_found")
 		awareness = maxf(awareness, 0.6)
 		last_known_target_pos = body   # they sweep outward from where he fell
 		target_last_seen_time = 0.0
@@ -1622,14 +1666,14 @@ func _update_perception() -> void:
 	match alert_tier:
 		AlertTier.RELAXED, AlertTier.SUSPICIOUS, AlertTier.ALERT:
 			if awareness >= 1.0:
-				_set_tier(AlertTier.COMBAT)
+				_set_tier(AlertTier.COMBAT, true, &"saw_target")
 			elif awareness >= SUSPICIOUS_THRESHOLD and alert_tier == AlertTier.RELAXED:
-				_set_tier(AlertTier.SUSPICIOUS)
+				_set_tier(AlertTier.SUSPICIOUS, true, &"glimpsed")
 		AlertTier.COMBAT:
 			if target == null or not is_instance_valid(target):
 				_combat_lost_time += THINK_INTERVAL
 				if _combat_lost_time > 8.0 and awareness <= 0.0:
-					_set_tier(AlertTier.ALERT)  # never back to RELAXED
+					_set_tier(AlertTier.ALERT, true, &"lost_target")  # never back to RELAXED
 			else:
 				_combat_lost_time = 0.0
 
@@ -1653,13 +1697,14 @@ func _stamp_contact() -> void:
 
 ## `witnessed` = false means "go loud LOCALLY, but you are not proof of anything."
 ## Used by take_damage: a man being shot fights back, but a corpse raises no alarm.
-func _set_tier(tier: AlertTier, witnessed: bool = true) -> void:
+func _set_tier(tier: AlertTier, witnessed: bool = true, cause: StringName = &"") -> void:
 	if tier == AlertTier.COMBAT and witnessed:
 		_stamp_contact()
 	if tier == alert_tier:
 		return
 	var was_cold: bool = alert_tier == AlertTier.RELAXED or alert_tier == AlertTier.SUSPICIOUS
 	alert_tier = tier
+	DecisionRingS.push(_ring_what, _ring_cause, _ring_when, TIER_NAMES[int(tier)], cause)
 	if tier != AlertTier.COMBAT:
 		EnemySquad.release_hot(self)  # left the fight: give the hot slot back
 	if tier == AlertTier.COMBAT:
@@ -1695,10 +1740,14 @@ func _on_noise_heard(_type: int, noise_pos: Vector3, radius: float, source_team:
 	last_known_target_pos = noise_pos
 	target_last_seen_time = 0.0
 	awareness = minf(1.0, awareness + 0.35)
+	_last_noise_type = _type
+	_last_noise_pos = noise_pos
+	_last_noise_ms = float(Time.get_ticks_msec())
+	var cause: StringName = NOISE_CAUSES[_type] if _type >= 0 and _type < NOISE_CAUSES.size() else &"heard"
 	if alert_tier == AlertTier.RELAXED:
-		_set_tier(AlertTier.SUSPICIOUS)
+		_set_tier(AlertTier.SUSPICIOUS, true, cause)
 	elif alert_tier == AlertTier.SUSPICIOUS:
-		_set_tier(AlertTier.ALERT)
+		_set_tier(AlertTier.ALERT, true, cause)
 
 
 ## HONEST ATTENTION: no intrinsic player bias, no sticky-until-dead lock. Rescored
@@ -2020,28 +2069,28 @@ func _update_state_for_goal() -> void:
 	match current_goal:
 		Enums.AIGoal.ENGAGE_TARGET:
 			if suppression_level > CombatPosture.SUPPRESS_PIN:
-				_change_state(Enums.AIState.SUPPRESSED)
+				_change_state(Enums.AIState.SUPPRESSED, &"suppressed")
 			else:
-				_change_state(Enums.AIState.COMBAT)
+				_change_state(Enums.AIState.COMBAT, &"goal_engage")
 		Enums.AIGoal.SEEK_COVER:
-			_change_state(Enums.AIState.SEEKING_COVER)
+			_change_state(Enums.AIState.SEEKING_COVER, &"goal_seek_cover")
 		Enums.AIGoal.SUPPRESS_TARGET:
-			_change_state(Enums.AIState.COMBAT)
+			_change_state(Enums.AIState.COMBAT, &"goal_suppress")
 		Enums.AIGoal.FLANK_TARGET:
-			_change_state(Enums.AIState.FLANKING)
+			_change_state(Enums.AIState.FLANKING, &"goal_flank")
 			VOManager.play_enemy("flanking", self)
 		Enums.AIGoal.ADVANCE:
-			_change_state(Enums.AIState.ADVANCING)
+			_change_state(Enums.AIState.ADVANCING, &"goal_advance")
 			VOManager.play_enemy("advance", self)
 		Enums.AIGoal.RETREAT:
-			_change_state(Enums.AIState.RETREATING)
+			_change_state(Enums.AIState.RETREATING, &"goal_retreat")
 		Enums.AIGoal.INVESTIGATE:
-			_change_state(Enums.AIState.ALERT)
+			_change_state(Enums.AIState.ALERT, &"goal_investigate")
 			VOManager.play_enemy("taunt", self)
 		Enums.AIGoal.HOLD_POSITION:
-			_change_state(Enums.AIState.IDLE)
+			_change_state(Enums.AIState.IDLE, &"goal_hold")
 		_:
-			_change_state(Enums.AIState.IDLE)
+			_change_state(Enums.AIState.IDLE, &"goal_none")
 
 
 ## ============================================
@@ -2151,6 +2200,70 @@ func legs_status() -> String:
 		_move_intent, str(_prone), str(_in_prone_transition()), str(_low_posture),
 		suppression_level, str(is_crippled), _router.box if _router != null else -9, off, navfin,
 		_unstick_flips]
+
+
+## DEV READOUT (observatory): what this man is thinking and why, as a Dictionary the tool
+## formats. Read on demand only - the body never calls it.
+func snapshot() -> Dictionary:
+	var now_ms: float = float(Time.get_ticks_msec())
+	var dest: Vector3 = Vector3.ZERO
+	var dest_kind: String = "-"
+	if _router != null and _router.agent != null and not _router.agent.is_navigation_finished():
+		dest = _router.agent.target_position
+		dest_kind = "nav"
+	elif _moving_to_cover and has_cover:
+		dest = current_cover
+		dest_kind = "cover"
+	elif assault_objective != Vector3.ZERO:
+		dest = assault_objective
+		dest_kind = "assault"
+	elif work_pos != Vector3.ZERO:
+		dest = work_pos
+		dest_kind = "work"
+	elif not patrol_route.is_empty():
+		dest = patrol_route[clampi(_patrol_index, 0, patrol_route.size() - 1)]
+		dest_kind = "patrol %d/%d" % [_patrol_index, patrol_route.size()]
+	var d: Dictionary = {
+		"kind": "enemy", "name": String(name),
+		"archetype": String(enemy_data.id) if enemy_data != null else "-",
+		"data_path": enemy_data_path,
+		"doctrine": _doc().resource_path if _doc() != null else "-",
+		"state": String(DecisionRingS.state_name(int(current_state))),
+		"goal": String(DecisionRingS.goal_name(int(current_goal))), "goal_timer": goal_timer,
+		"tier": String(TIER_NAMES[int(alert_tier)]), "awareness": awareness,
+		"contact_conf": contact_conf, "los": has_line_of_sight,
+		"suppression": suppression_level, "threat": threat_level,
+		"hp": current_hp, "max_hp": max_hp, "downed": is_downed, "crippled": is_crippled,
+		"dead": current_state == Enums.AIState.DEAD,
+		"lod": "FAR" if ai_tier == AILod.Tier.FAR else "NEAR",
+		"suspended": has_meta("suspended") or not is_physics_processing(),
+		"body_hot": _body_hot, "hot_slot": EnemySquad.is_hot(self),
+		"target": target.name if target != null and is_instance_valid(target) else "",
+		"target_pos": target.global_position if target != null and is_instance_valid(target) else Vector3.ZERO,
+		"last_known": last_known_target_pos, "last_known_age": target_last_seen_time,
+		"destination": dest, "dest_kind": dest_kind,
+		"facing": facing_dir, "sight_cap": _sight_cap(global_position + facing_dir * 10.0),
+		"camp_role": camp_role, "work_clip": work_clip, "squad": squad_id,
+		"file_slot": patrol_file_slot, "spider": is_spider_hole, "infiltrator": silent_infiltrator,
+		"has_reacted": has_reacted, "reaction_timer": reaction_timer,
+		"move_intent": _move_intent, "speed": Vector2(velocity.x, velocity.z).length(),
+		"unstick_t": _unstick_t, "unstick_flips": _unstick_flips, "stuck_t": _stuck_t,
+		"legs": legs_status(),
+		"last_noise_type": _last_noise_type, "last_noise_pos": _last_noise_pos,
+		"last_noise_age": (now_ms - _last_noise_ms) * 0.001 if _last_noise_ms > 0.0 else -1.0,
+		"chain_from": _chain_from,
+		"chain_age": (now_ms - _chain_ms) * 0.001 if _chain_ms > 0.0 else -1.0,
+		"squad_last_known": EnemySquad.shared_last_known(squad_id),
+		"ring": DecisionRingS.format(_ring_what, _ring_cause, _ring_when),
+	}
+	if _router != null:
+		d["nav_box"] = _router.box
+		var snapped: Vector3 = _router.nearest_mesh_point(global_position)
+		d["off_mesh_m"] = Vector2(snapped.x - global_position.x, snapped.z - global_position.z).length()
+		if _router.agent != null:
+			d["nav_finished"] = _router.agent.is_navigation_finished()
+			d["nav_path_pts"] = _router.agent.get_current_navigation_path().size()
+	return d
 
 
 ## Drive the satchel to the objective at a run, ignoring cover and contact. The
@@ -2683,10 +2796,12 @@ func _execute_retreating(delta: float) -> void:
 	velocity.z = _retreat_bearing.z * flee_speed
 
 
-func _change_state(new_state: Enums.AIState) -> void:
+func _change_state(new_state: Enums.AIState, cause: StringName = &"") -> void:
 	if new_state == current_state:
 		return
 	current_state = new_state
+	DecisionRingS.push(_ring_what, _ring_cause, _ring_when,
+		DecisionRingS.state_name(int(new_state)), cause)
 
 
 ## Routed through NavBaker's per-site navmesh so pursuers path around obstacles.
@@ -3219,7 +3334,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 	# Getting shot = instant COMBAT tier, but LOCALLY ONLY (witnessed=false): he
 	# fights back without proving anything. Whether the AO learns is decided by
 	# whether he LIVES (below), or by _die() -> _witness_check. THE WITNESS RULE.
-	_set_tier(AlertTier.COMBAT, false)
+	_set_tier(AlertTier.COMBAT, false, &"shot")
 	if attacker is Node3D:
 		last_known_target_pos = (attacker as Node3D).global_position
 		target_last_seen_time = 0.0
@@ -3229,7 +3344,7 @@ func take_damage(amount: int, _damage_type: Enums.DamageType = Enums.DamageType.
 			target = attacker as Node3D
 			last_known_target_pos = target.global_position
 		current_goal = Enums.AIGoal.ENGAGE_TARGET
-		_change_state(Enums.AIState.COMBAT)
+		_change_state(Enums.AIState.COMBAT, &"shot")
 
 	var suppress_amount: float = float(amount) / float(max_hp) * 0.5
 	suppression_level = minf(1.0, suppression_level + suppress_amount)
@@ -3427,7 +3542,7 @@ func apply_stagger(power: float) -> void:
 	if power >= 1.0 and current_state != Enums.AIState.DEAD:
 		suppression_level = minf(1.0, suppression_level + 0.5)
 		_last_crack_ms = float(Time.get_ticks_msec())
-		_change_state(Enums.AIState.SUPPRESSED)
+		_change_state(Enums.AIState.SUPPRESSED, &"staggered")
 
 
 ## DOWN-NOT-DEAD: dying, not dead. IRON LAW: he never re-fights. Bleeds out in
@@ -3590,7 +3705,7 @@ func _die() -> void:
 		VOManager.play_enemy("man_down", self, true)  # downed men already cried out
 	_witness_check(killer)
 	GunFX.blood_pool(get_tree().current_scene, global_position)
-	_change_state(Enums.AIState.DEAD)
+	_change_state(Enums.AIState.DEAD, &"died")
 	_release_cover()
 	AgentRegistry.unregister(self)
 	if not _died_emitted:

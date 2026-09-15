@@ -94,10 +94,15 @@ static func _mark_children(parent: Node, depth: int) -> void:
 		if c is FrameSentinel or c.is_in_group(MARK_GROUP):
 			continue
 		var has: bool = c.get_child_count() > 0 and (c.get_child(0) as Node).is_in_group(MARK_GROUP)
+		# A script-less node is a pool root or a container, and its children are indexed by its
+		# owner: GunFX reads its flash quads at child 0/1, and a mark shoved in front of them
+		# was every "'mesh' on Nil" SCRIPT ERROR a --print-fps run printed since 2026-09-11.
+		var scr: Script = c.get_script() as Script
+		if scr == null:
+			continue
 		if not has:
 			var m := Mark.new()
 			# Name + script, because a script-made node is "@Node@5" and that names nothing.
-			var scr: Script = c.get_script() as Script
 			m.label = String(c.name) + ("" if scr == null else "[" + scr.resource_path.get_file() + "]")
 			m.name = "StallMark_" + String(c.name)
 			m.add_to_group(MARK_GROUP)

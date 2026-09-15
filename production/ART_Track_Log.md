@@ -22,6 +22,33 @@ band, DA Form 20, K-ration scrap, letter, folded topo. **Unused: `cover.png`** â
 closed-journal state. Ship it or cut it.
 
 
+## THE TOC IS A BUNKER A MAN CAN STAND IN, THE GATE SITS ON THE MOUND, DUCKBOARDS FROM EVERY DOOR - DONE 2026-09-14 (his eye pending)
+
+His list, verbatim: *"can we headlessly fix the HQ bunker and spend some time making it proper ... adding
+more ambient floorboard paths around the firebase and fixing the gate (its floating and not realistic)"*.
+All three in `firebase_v3.2.blend` / the kit, re-exported by the canon recipe, gated in Godot (census:
+parapet 224 + duckboards 170 stamped; stress 0 SCRIPT ERROR). Commit `96fe897c` on BaseGame-V1.
+
+- **TOC (`fb_toc_i`)**: the procedural pit was BURIED under the mound (27 mound verts through the
+  footprint) so the roof stood 1.05 m over the real floor - it was never enterable. Now: PSP floor at
+  grade, plank walls on the bag revetment, ten stringers, PSP + three-course bag roof, timber-jambed door
+  at the door marker (1.24 x 1.94 m), offset blast wall, berm wedges, RC-292 mast + whip. 5,032 -> 5,908
+  tris; headroom 2.14 m. The seven `fb_int_*` pieces, `work_radio.001`, `prop_map` and both bulbs moved
+  onto the floor. No CONEX (no donor). Renders `production/renders_firebase/toc_AFTER_*.png`.
+- **Gate (`fb_gate_gap_i`)**: posts sunk -0.30 m, runs -0.05 m (were +0.04..+0.23 floating); two 3.6 m
+  timber-frame leaves hinged inward; four posts under the guard sheet; 2,798 tris. NOT DONE: concertina
+  tie-in (no wire material slot in the gate mesh). Renders `gate_AFTER_*.png`.
+- **Duckboards (`kit/fb_duckboard.glb`)**: 12 slats on two runners cut from the chow-hall bench, 140
+  tris, 12-tri box collider, `fb_timber`; 170 sections planned off the door markers
+  (`tools/gen_duckboard_plan.py` -> `data/site_plans/fsb_main_duckboards.json`). The plan's sharp turns
+  (69 deg) leave a wedge at the outer corner - a generator item, not the part.
+- **Pre-existing texture-law breach surfaced, NOT touched**: `fsb_main_v3.glb` embeds two 9.05 MB sheets
+  (`better textures`, `recovered_ref_factions`, the 3600x5700 crew sheets, exempt by name from the shrink
+  tool); `kit/fb_emplacement_m101.glb` carries the same sheet. `shrink_master_sheets.py` dry-run gives
+  9.1 -> 3.6 MB (still over 1 MB). YOUR CALL.
+- Bunkers: yours by hand, per your word.
+
+
 ## THE SANDBAG RING IS A SANDBAG WALL AGAIN - DONE 2026-09-14
 
 `fb_sandbag_heavy.glb` (the ONE part the firebase's 224-piece perimeter is stamped from) carried the

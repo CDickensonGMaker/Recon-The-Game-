@@ -45,6 +45,11 @@ screen, and stays resident for the mission.**
   is invariant across a full traverse of the 1280m AO).
 - The current AO of record remains 1280m / 5×5 chunks per `world_config.gd`. Changing `MAP_SIZE` above 2000m
   is an ADR-level decision, not a tuning tweak.
+- **Correction 2026-09-14 (War Room, ruling 1):** 1280 m is the *patrol* world only (`world_config.gd`).
+  The shipping DEMO overrides it: `GameFlow.DEMO_MAP_SIZE` (`scripts/main/game_flow.gd`) shipped 512 m /
+  2×2 chunks through 2026-09-14 and is now **1024 m / 4×4 chunks**, with `--demo-map=N` for the paired A/B
+  (`GameFlow.demo_map_size()`). The resident-world policy above is unchanged: all 16 chunks build behind
+  the load screen, nothing streams.
 - The streaming code **stays in the codebase** for future 3km+ AOs. It is NOT deleted.
 - Streaming MUST NOT be re-enabled — on any map size — until BOTH hold: (1) chunk load/unload work runs under
   a per-frame time budget like the rebuild queue's `REBUILD_BUDGET_MS` (terrain_manager.gd:52, 84-95), and

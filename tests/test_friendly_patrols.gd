@@ -411,8 +411,11 @@ func _check_ambient_patrol_lods() -> void:
 	var squaddie: AllyBase = AllyBase.spawn_ally(self, Vector3(400, 0, 0))
 	squaddie.squad_member = true
 
+	# One pass is sliced over several ticks (SLICE_MAX bodies each); drain it.
 	wd._timer = TerrainWatchdog.POLL_SECONDS + 1.0
 	wd._physics_process(0.016)
+	while wd._cursor < wd._queue.size():
+		wd._physics_process(0.016)
 
 	if not ambient.has_meta("suspended"):
 		_fail("an ambient patrolman 400m from the player was NOT suspended - he runs full AI across the AO")

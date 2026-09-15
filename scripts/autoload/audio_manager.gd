@@ -60,6 +60,7 @@ func _ready() -> void:
 	_bus_weapons = _bus("Weapons", "SFX")
 	_bus_tail = _bus("WeaponsTail", "SFX")
 	_bus_amb = _bus("Ambience", "Master")
+	_init_step_ledger()
 	if _headless:
 		return
 	_build_voice_pool()
@@ -91,58 +92,157 @@ func _build_voice_pool() -> void:
 ## ---------- NPC FOOTSTEPS ----------
 ## Own tiny pool so 60 walking men can never evict a gunshot voice. Steps are
 ## an ear-tracking tool: the AI already hears the PLAYER through NoiseBus, so
-## the player gets the symmetric cue back.
+## the player gets the symmetric cue back. Hearing a man before seeing him is
+## the whole jungle (2026-09-14 decree ruling 8): audible range sits ABOVE the
+## ~45 m jungle sight cap, nearest man wins a full pool, and a hill or a hut
+## between the ear and the foot low-passes him.
 const STEP_DIRT := preload("res://assets/audio/sfx/step_dirt.wav")
 const STEP_GRASS := preload("res://assets/audio/sfx/step_grass.wav")
 const STEP_WATER := preload("res://assets/audio/sfx/step_water.wav")
-const STEP_VOICES: int = 6
-const STEP_AUDIBLE_M: float = 28.0
+const STEP_VOICES: int = 10
+const STEP_AUDIBLE_M: float = 48.0          ## a walking man; crouch-walk x0.5
+const STEP_AUDIBLE_SPRINT_M: float = 64.0   ## a running man
+const STEP_OCCLUDED_HZ: float = 900.0
+const STEP_CLEAR_HZ: float = 5000.0
+const STEP_OCCLUDED_DB: float = -9.0
+const STEP_CANOPY_DUCK: float = 0.5         ## volume x (1 - 0.5 * vegetation density)
+const STEP_REPORT_MS: int = 60000
 var _step_voices: Array[AudioStreamPlayer3D] = []
+## Book-keeping is time-based, not `playing`-based, so the pick and its census run
+## identically headless (where no voice exists) and windowed.
+var _step_busy_until_ms: PackedInt64Array = PackedInt64Array()
+var _step_dist: PackedFloat32Array = PackedFloat32Array()
 var _step_grid: GameplayGrid = null
+var _bus_steps: int = 0
+var _step_peak: int = 0
+var _step_steals: int = 0
+var _step_dropped: int = 0
+var _step_played: int = 0
+var _step_next_report_ms: int = 0
+
+
+## A "Steps" bus off SFX, built here when the layout lacks one, so the steps sit
+## on their own fader instead of under the Weapons compressor (+3 dB make-up gain
+## that turned a footfall into a gunshot's neighbour). The low-pass is the jungle
+## air; per-voice occlusion narrows it further.
+func _ensure_steps_bus() -> void:
+	var idx: int = AudioServer.get_bus_index("Steps")
+	if idx < 0:
+		idx = AudioServer.bus_count
+		AudioServer.add_bus(idx)
+		AudioServer.set_bus_name(idx, "Steps")
+		AudioServer.set_bus_send(idx, "SFX")
+		var lp := AudioEffectLowPassFilter.new()
+		lp.cutoff_hz = 7000.0
+		AudioServer.add_bus_effect(idx, lp)
+	_bus_steps = idx
 
 
 func _build_step_pool() -> void:
+	_ensure_steps_bus()
 	for i in range(STEP_VOICES):
 		var p := AudioStreamPlayer3D.new()
-		p.bus = AudioServer.get_bus_name(_bus_weapons)
-		p.max_distance = STEP_AUDIBLE_M
-		p.unit_size = 3.0
+		p.bus = AudioServer.get_bus_name(_bus_steps)
+		p.max_distance = STEP_AUDIBLE_SPRINT_M
+		p.unit_size = 6.0  # full level inside 6 m, -18 dB at 48 m: the range knob for his ears
+		p.attenuation_filter_cutoff_hz = STEP_CLEAR_HZ
 		add_child(p)
 		_step_voices.append(p)
 
 
-func play_step_3d(pos: Vector3, crouched: bool = false) -> void:
-	if _headless:
-		return
+func _init_step_ledger() -> void:
+	_step_busy_until_ms.resize(STEP_VOICES)
+	_step_dist.resize(STEP_VOICES)
+	_step_busy_until_ms.fill(0)
+	_step_dist.fill(0.0)
+	_step_next_report_ms = Time.get_ticks_msec() + STEP_REPORT_MS
+
+
+## Distance-priority pick: a free voice, else steal the FARTHEST playing voice
+## when this step is nearer, else drop. Returns -1 on a drop. The ledger runs
+## headless too so the stress census counts the real contention.
+func _pick_step_voice(dist: float, now_ms: int) -> int:
+	var slot: int = -1
+	var far_slot: int = -1
+	var far_d: float = -1.0
+	var busy: int = 0
+	for i in range(STEP_VOICES):
+		if now_ms >= _step_busy_until_ms[i]:
+			if slot < 0:
+				slot = i
+			continue
+		busy += 1
+		if _step_dist[i] > far_d:
+			far_d = _step_dist[i]
+			far_slot = i
+	if slot >= 0:
+		_step_peak = maxi(_step_peak, busy + 1)
+		return slot
+	if far_d > dist:
+		_step_steals += 1
+		return far_slot
+	_step_dropped += 1
+	return -1
+
+
+func play_step_3d(pos: Vector3, crouched: bool = false, sprinting: bool = false) -> void:
 	var cam: Camera3D = get_viewport().get_camera_3d()
 	if cam == null:
 		return
-	var audible: float = STEP_AUDIBLE_M * (0.5 if crouched else 1.0)
-	if cam.global_position.distance_to(pos) > audible:
+	var audible: float = STEP_AUDIBLE_SPRINT_M if sprinting else STEP_AUDIBLE_M
+	if crouched:
+		audible *= 0.5
+	var dist: float = cam.global_position.distance_to(pos)
+	if dist > audible:
 		return
-	for p in _step_voices:
-		if p.playing:
-			continue
-		# Surface lookup only for steps that actually play (pool-rate, not NPC-rate).
-		if _step_grid == null or not is_instance_valid(_step_grid):
-			var gw: Node = get_tree().get_first_node_in_group("game_world")
-			_step_grid = gw.get("gameplay_grid") if gw != null else null
-		var stream: AudioStream = STEP_DIRT
-		if _step_grid != null:
-			if _step_grid.is_water(pos):
+	var now_ms: int = Time.get_ticks_msec()
+	if now_ms >= _step_next_report_ms:
+		_step_next_report_ms = now_ms + STEP_REPORT_MS
+		print("[AUDIO] steps: peak %d voices, %d steals, %d dropped, %d played (pool %d)"
+			% [_step_peak, _step_steals, _step_dropped, _step_played, STEP_VOICES])
+	var slot: int = _pick_step_voice(dist, now_ms)
+	if slot < 0:
+		return
+	_step_played += 1
+	_step_dist[slot] = dist
+	# Surface lookup only for steps that actually play (pool-rate, not NPC-rate).
+	if _step_grid == null or not is_instance_valid(_step_grid):
+		var gw: Node = get_tree().get_first_node_in_group("game_world")
+		_step_grid = gw.get("gameplay_grid") if gw != null else null
+	var stream: AudioStream = STEP_DIRT
+	var canopy: float = 0.0
+	if _step_grid != null:
+		canopy = clampf(_step_grid.get_vegetation(pos), 0.0, 1.0)
+		if _step_grid.is_water(pos):
+			stream = STEP_WATER
+		else:
+			var t: int = _step_grid.get_terrain_type(pos)
+			if t == GameplayGrid.TerrainType.GRASSLAND:
+				stream = STEP_GRASS
+			elif t == GameplayGrid.TerrainType.RICE_PADDY:
 				stream = STEP_WATER
-			else:
-				var t: int = _step_grid.get_terrain_type(pos)
-				if t == GameplayGrid.TerrainType.GRASSLAND:
-					stream = STEP_GRASS
-				elif t == GameplayGrid.TerrainType.RICE_PADDY:
-					stream = STEP_WATER
-		p.stream = stream
-		p.volume_db = -18.0 if crouched else -12.0
-		p.pitch_scale = randf_range(0.85, 1.15)
-		p.global_position = pos
-		p.play()
+	var pitch: float = randf_range(0.85, 1.15)
+	_step_busy_until_ms[slot] = now_ms + int(stream.get_length() * 1000.0 / pitch) + 1
+	if _headless:
 		return
+	var p: AudioStreamPlayer3D = _step_voices[slot]
+	p.stream = stream
+	var vol_db: float = -18.0 if crouched else (-9.0 if sprinting else -12.0)
+	vol_db += linear_to_db(maxf(1.0 - STEP_CANOPY_DUCK * canopy, 0.05))
+	# One occlusion ray per voice START, never per frame: pool-rate by construction.
+	# Aimed at knee height so a slope under the foot does not read as a wall.
+	var space: PhysicsDirectSpaceState3D = cam.get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(cam.global_position, pos + Vector3.UP * 0.9, 1)
+	if space != null and not space.intersect_ray(q).is_empty():
+		p.attenuation_filter_cutoff_hz = STEP_OCCLUDED_HZ
+		vol_db += STEP_OCCLUDED_DB
+	else:
+		p.attenuation_filter_cutoff_hz = STEP_CLEAR_HZ
+	p.max_distance = audible
+	p.volume_db = vol_db
+	p.pitch_scale = pitch
+	p.global_position = pos
+	p.play()
 
 
 func _build_player_slots() -> void:
@@ -584,6 +684,10 @@ func _listener_pos() -> Vector3:
 func _exit_tree() -> void:
 	# Release every voice so nothing outlives teardown.
 	for p in _voices:
+		if is_instance_valid(p):
+			p.stop()
+			p.stream = null
+	for p in _step_voices:
 		if is_instance_valid(p):
 			p.stop()
 			p.stream = null

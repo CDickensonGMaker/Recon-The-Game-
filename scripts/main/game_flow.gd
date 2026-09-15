@@ -583,7 +583,19 @@ static var demo_mode: bool = false
 ## the whole wayfinding system - no quest marker teaches a location like opening your eyes
 ## in it (War Room 2026-08-28, UX lens).
 static var player_rack: Vector3 = Vector3.ZERO
+## 512 until the 1024 slice passes its own gate: on 2026-09-14 the assault at 1024 never
+## reached the wire (the cells stalled 60-150 m out on "could not find the most reachable
+## polygons", 0 of those at 512). The bigger map is one flag away, never a silent default.
 const DEMO_MAP_SIZE: float = 512.0
+
+
+## `--demo-map=N` builds the demo slice at N metres for his paired A/B (512 is the
+## 2026-09-14 layout); anything in (768, 1024] costs the full 4x4 chunk grid regardless.
+static func demo_map_size() -> float:
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--demo-map="):
+			return float(int(a.get_slice("=", 1)))
+	return DEMO_MAP_SIZE
 
 
 func enter_hub() -> void:
@@ -621,7 +633,8 @@ func enter_hub() -> void:
 	world.mission_seed = op_seed
 	world.spawn_player_on_ready = false
 	if demo_mode:
-		world.map_size = DEMO_MAP_SIZE
+		world.map_size = demo_map_size()
+	var build_t0: int = Time.get_ticks_msec()
 	add_child(world)
 	while not world.is_world_ready:
 		await get_tree().create_timer(0.25).timeout
@@ -742,6 +755,11 @@ func enter_hub() -> void:
 	# Ray where the player ACTUALLY stands (post save-restore), not the planned
 	# spawn - the save teleport was invisible to a spawn-point ray.
 	_report_spawn_truth(world.player.global_position if world.player != null else spawn, op_seed)
+	print("[WORLD-READY] map %.0fm | build %d ms | static mem %.1f MB | nodes %d | orphans %d" % [
+		world.map_size, Time.get_ticks_msec() - build_t0,
+		Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0,
+		int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+		int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))])
 	# Instruments attach to the world the player actually walks - never a world of
 	# their own. `--print-fps` is the export-safe printer (M-2/M-3); `--perf-probe`
 	# samples, `--perf-cycle` runs the attribution phases.

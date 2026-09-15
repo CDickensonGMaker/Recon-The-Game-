@@ -12,8 +12,9 @@ const AIRFRAME_SCENE: PackedScene = preload("res://assets/us/aircraft/ac47_spook
 ## The authored port-battery muzzle empties (gun_muzzle_1..3), cached at _ready.
 var _muzzles: Array[Node3D] = []
 var _muzzle_i: int = 0
-## Night orbit bird, heard more than seen: cull the airframe past ~1200m.
-const VIS_END_M: float = 1200.0
+## Night orbit bird, heard more than seen: cull the airframe past ~1500m - the 1024 m
+## demo slice is 1448 m corner to corner.
+const VIS_END_M: float = 1500.0
 const VIS_MARGIN_M: float = 80.0
 
 const ORBIT_RADIUS: float = 160.0

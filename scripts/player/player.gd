@@ -307,6 +307,7 @@ var _wade_timer: float = 0.0
 var _grid: GameplayGrid = null
 ## Wading a flooded paddy: slow, loud, exposed.
 var _in_rice_paddy: bool = false
+var _self_step: AudioStreamPlayer = null
 
 
 func _play_footstep_sound() -> void:
@@ -330,13 +331,24 @@ func _play_footstep_sound() -> void:
 			if t == GameplayGrid.TerrainType.RICE_PADDY:
 				stream = STEP_WATER  # a flooded paddy sounds like a wade, not a step
 				_in_rice_paddy = true
-	var p := AudioStreamPlayer.new()
-	p.stream = stream
-	p.volume_db = -16.0 if is_crouching else -10.0
-	p.pitch_scale = randf_range(0.9, 1.1)
-	add_child(p)
-	p.play()
-	p.finished.connect(p.queue_free)
+	# The payer hears the price (ADR-018 stealth economy): sprint reads loud, a
+	# crouch-walk near-silent, a paddy wade louder than dry ground. One reused 2D
+	# voice - the old per-step node churn was 3 nodes/s of allocation for nothing.
+	if _self_step == null:
+		_self_step = AudioStreamPlayer.new()
+		_self_step.bus = "Steps" if AudioServer.get_bus_index("Steps") >= 0 else "SFX"
+		add_child(_self_step)
+	var vol_db: float = -10.0
+	if is_prone or is_crouching:
+		vol_db = -20.0
+	elif is_sprinting:
+		vol_db = -3.0
+	if _in_rice_paddy:
+		vol_db += 4.0
+	_self_step.stream = stream
+	_self_step.volume_db = vol_db
+	_self_step.pitch_scale = randf_range(0.85, 0.95) if is_sprinting else randf_range(0.9, 1.1)
+	_self_step.play()
 
 
 func _field_toast(text: String) -> void:
@@ -610,6 +622,11 @@ func field_interact_prompt() -> String:
 	var rack: String = SLEEP_STATION.prompt(self)
 	if not rack.is_empty():
 		return rack
+	var dealer: Node = get_tree().get_first_node_in_group("dealer_table")
+	if dealer != null:
+		var carried: String = str(dealer.call("field_prompt", self))
+		if not carried.is_empty():
+			return carried
 	if is_manning_mg:
 		return "[F] DISMOUNT"
 	var mg: Node3D = _nearby_mg_emplacement()
@@ -1007,6 +1024,10 @@ func _satchel_the_mouth(entrance: Node3D) -> void:
 
 ## Interact: capture / loot / crate / tunnel enter-exit.
 func _try_field_interact() -> void:
+	# Poteet's case and the mail sack: what he is carrying is the most specific thing in reach.
+	var dealer: Node = get_tree().get_first_node_in_group("dealer_table")
+	if dealer != null and bool(dealer.call("try_field_interact", self)):
+		return
 	# The medic's crate. First because it is the smallest, most specific target in reach -
 	# a man standing over it is reaching for it, not for the MG two metres past it.
 	var med_crate: MedicalCrate = MedicalCrate.nearest(self)
