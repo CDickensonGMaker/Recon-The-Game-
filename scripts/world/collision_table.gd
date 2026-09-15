@@ -193,6 +193,8 @@ const STRUCTURES := {
 	"wooden_bridge": {"box": Vector3(18.9, 3.6, 4.1), "y_offset": 1.82, "footprint": Vector2(20.0, 5.5), "scale": 1.0},
 	# monkey_bridge.glb: 15.0 span x 2.54 tall x 1.0 wide, origin on the ford floor at mid-span; the
 	# deck-only -colonly hulls are the whole collision (legs open so a man wades beneath).
+	# Destructible kind bridge_timber (SitePlanner.PLACED_DESTRUCTIBLE_KINDS): blown or cut,
+	# the hulls disable and the wade is the only way over.
 	"monkey_bridge": {"box": Vector3(15.0, 2.54, 1.0), "y_offset": 1.27, "footprint": Vector2(16.0, 2.0), "scale": 1.0, "mesh": true},
 }
 

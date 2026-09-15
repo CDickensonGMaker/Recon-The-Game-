@@ -53,6 +53,8 @@ const BLAST_FOR: Dictionary = {
 	"bunker_mg": "explosion_mortar",
 	# A stash going up is the ORDNANCE cooking off, not the crate splintering.
 	"weapons_cache": "explosion_mortar",
+	# Lashed bamboo over a ford: a pop and splinters, no ruin - the crossing is simply gone.
+	"bridge_timber": "explosion_40mm",
 }
 
 
@@ -89,7 +91,42 @@ const HP_FOR: Dictionary = {
 	# Crates and a tarp. One satchel, one LAW, or a grenade in the right place - his
 	# "destroy the stash" verb has to be reachable with what a patrol actually carries.
 	"weapons_cache": 80,
+	# One M79 HE (150) or one satchel (250) at mid-span drops it; six M60 rounds at the
+	# GUNFIRE_CUTS bite (42 x 0.6 = 25 each) cut it, five do not.
+	"bridge_timber": 140,
 }
+
+
+## THE ONE EXCEPTION TO "ONLY EXPLOSIVES BRING A BUILDING DOWN" (take_damage below). A
+## monkey bridge is lashings and split bamboo, and an MG burst cuts it where it cannot
+## dent a wall. kind -> fraction of a round's damage that bites. bullet_system.gd routes a
+## structure hit here through gunfire_bite(); every kind absent from this map still
+## ignores gunfire entirely.
+const GUNFIRE_CUTS: Dictionary = {
+	"bridge_timber": 0.6,
+}
+## Rounds under MG class (base 42, ADR-016) pepper timber without cutting it - a rifleman
+## does not shoot a bridge down with half a magazine.
+const GUNFIRE_CUT_FLOOR: int = 42
+
+
+## The fraction of a round's damage that bites into a kind, or 0.0 when gunfire cannot cut it.
+static func gunfire_bite(k: String, base_damage: int) -> float:
+	if base_damage < GUNFIRE_CUT_FLOOR:
+		return 0.0
+	return float(GUNFIRE_CUTS.get(k, 0.0))
+
+
+## The Destructible a struck collider belongs to (the collider itself or an ancestor), or
+## null. A placed prop's -colonly hulls import as StaticBody3D children of the visual, two
+## levels under the Destructible root, so the bullet never hits the Destructible itself.
+static func owner_of(col: Object) -> Destructible:
+	var n: Node = col as Node
+	while n != null:
+		if n is Destructible:
+			return n as Destructible
+		n = n.get_parent()
+	return null
 
 
 ## HP for a kind. An unknown kind is a wiring mistake, not a tuning one, so it is loud.
@@ -146,7 +183,7 @@ var _dead: bool = false
 ## the 242 bulletproof hooch walls, in a different file. The set of kinds is small, closed and
 ## already enumerated by HP_FOR, so it is enumerated here too, and an unknown kind is LOUD
 ## rather than silently bulletproof.
-const SOFT_KINDS: Array[String] = ["wire", "hut_thatch", "weapons_cache"]
+const SOFT_KINDS: Array[String] = ["wire", "hut_thatch", "weapons_cache", "bridge_timber"]
 ## "sandbag" is bench-only (support_fire_range, probe_fire_parity) - it is not in HP_FOR and
 ## carries its HP inline. Listed so the warning names real gaps rather than crying wolf.
 const HARD_KINDS: Array[String] = ["sandbag_wall", "sandbag_stack", "sandbag", "bunker",
@@ -168,11 +205,12 @@ func _ready() -> void:
 ## The rule was already the documented intent above this function and held only by caller
 ## discipline - bullet_system damages nothing outside enemies/player/allies, and the props
 ## loop passes EXPLOSIVE. But projectile_base.gd:344 passes PHYSICAL kinetic, so the door was
-## open. Enforce it here, where it cannot be reopened by a new caller.
+## open. Enforce it here, where it cannot be reopened by a new caller. The only way past it
+## is a row in GUNFIRE_CUTS, and the caller has already scaled the round by gunfire_bite().
 func take_damage(amount: int, t: int = 0, _attacker: Node = null, _zone: String = "BODY") -> void:
 	if _dying or _dead:
 		return
-	if t != Enums.DamageType.EXPLOSIVE:
+	if t != Enums.DamageType.EXPLOSIVE and not GUNFIRE_CUTS.has(kind):
 		return
 	hp -= amount
 	if hp <= 0:
@@ -223,11 +261,20 @@ func _do_destroy() -> void:
 	GunFX.play_explosion_3d(get_tree().current_scene if is_inside_tree() else self,
 		global_position, blast_for(kind))
 	StallLedger.end()
-	for c in get_children():
-		if c is MeshInstance3D:
-			(c as MeshInstance3D).visible = false
-		elif c is CollisionShape3D:
-			(c as CollisionShape3D).disabled = true   # rubble is not full cover
+	# The WHOLE subtree, not the direct children: a placed prop (site_planner.place_structure)
+	# keeps its GLB as a child scene, with the meshes and the -colonly hull bodies nested
+	# under that, and a direct-children walk left the intact hut drawn and its hulls solid.
+	var stack: Array[Node] = [self]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if n is MeshInstance3D:
+			(n as MeshInstance3D).visible = false
+		elif n is CollisionShape3D:
+			(n as CollisionShape3D).disabled = true   # rubble is not full cover
+	if kind == "bridge_timber":
+		_splinter_span()
 	if destroyed_mesh != null:
 		var mi := MeshInstance3D.new()
 		mi.mesh = destroyed_mesh
@@ -253,9 +300,12 @@ func _do_destroy() -> void:
 	_scatter_rubble()
 	StallLedger.end()
 	# The blast that killed it also scars the ground (this crater rides the terrain throttle).
-	StallLedger.begin("dz.crater")
-	DamageSystem.apply_damage(global_position, DamageSystem.DamageType.BUNKER_COLLAPSE, 1.0)
-	StallLedger.end()
+	# Not under a bridge: its origin is the carved ford floor, and a crater there deepens
+	# the one wade the crossing was standing over.
+	if kind != "bridge_timber":
+		StallLedger.begin("dz.crater")
+		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.BUNKER_COLLAPSE, 1.0)
+		StallLedger.end()
 	# visual_mult 1.0: collapse dust, not ordnance - the spectacle mult stays off.
 	StallLedger.begin("dz.dust")
 	GunFX.play_explosion_3d(get_tree().current_scene, global_position, "explosion_grenade", 1.0)
@@ -270,6 +320,19 @@ func _do_destroy() -> void:
 		var fd: Node = get_tree().get_first_node_in_group("mission_director")
 		if fd != null and is_instance_valid(fd) and fd.has_method("report_stash_cleared"):
 			fd.call("report_stash_cleared", global_position)
+
+
+## Debris along the deck, not one puff at the origin: the span is 15 m and the origin sits
+## on the ford floor 1.2 m under it. Existing impact FX only - no new sheet.
+func _splinter_span() -> void:
+	if not is_inside_tree():
+		return
+	var scene: Node = get_tree().current_scene
+	if scene == null:
+		return
+	var span: Vector3 = global_transform.basis.x.normalized()
+	for off: float in [-4.5, -1.5, 1.5, 4.5]:
+		GunFX.impact(scene, global_position + span * off + Vector3.UP * 1.2, Vector3.UP, true)
 
 
 func _scatter_rubble() -> void:

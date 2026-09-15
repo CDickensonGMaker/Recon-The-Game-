@@ -172,13 +172,44 @@ func _physics_step_scripted_sequence(_delta: float) -> void:
 			if int(hp) > int(_hp_baseline[id]):
 				_hp_baseline[id] = int(hp)  # healed: track up so later hits still read
 		var tgt: Variant = agent.get("target")
-		if tgt is Node and is_instance_valid(tgt as Node):
-			_abort("cast acquired combat target")
+		if tgt is Node and is_instance_valid(tgt as Node) and cast_in_combat(agent):
+			_abort("cast acquired combat target (%s)" % _target_note(agent, tgt as Node))
 			return
 		var enemy := agent as EnemyBase
 		if enemy != null and enemy.alert_tier == EnemyBase.AlertTier.COMBAT:
 			_abort("cast entered COMBAT")
 			return
+
+
+## "Acquired a combat target" is the man's OWN in-contact test where he has one. An
+## AllyBase holds `target` on any enemy inside the sight cap with no line-of-sight test,
+## so the crossing beat aborted on ambient patrols 55-75 m off through the jungle that
+## no squad man could see (six seeded runs, 2026-09-15). The cast stays mortal and
+## reactive: the moment he SEES the man, or a round lands, the sequence still aborts.
+static func cast_in_combat(agent: Node) -> bool:
+	var ally := agent as AllyBase
+	if ally != null:
+		return ally.in_contact()
+	var tgt: Variant = agent.get("target")
+	return tgt is Node and is_instance_valid(tgt as Node)
+
+
+## The abort's evidence line: who saw what, from where, at what range (the 2026-09-15 crossing
+## abort had no name on the target).
+func _target_note(agent: Node, tgt: Node) -> String:
+	var a := agent as Node3D
+	var t := tgt as Node3D
+	if a == null or t == null:
+		return "%s -> %s" % [agent.name, tgt.name]
+	var groups: PackedStringArray = PackedStringArray()
+	for g in t.get_groups():
+		groups.append(str(g))
+	var script: Script = t.get_script() as Script
+	var kind: String = script.get_global_name() if script != null else t.get_class()
+	return "%s at %.0f,%.0f -> %s [%s; %s] at %.0f,%.0f, %.0f m, sim %05.2f" % [
+		agent.name, a.global_position.x, a.global_position.z, t.name, kind, ",".join(groups),
+		t.global_position.x, t.global_position.z, a.global_position.distance_to(t.global_position),
+		SimClock.sim_hour]
 
 
 func _execute_step(step: Dictionary) -> void:

@@ -795,6 +795,12 @@ func enter_hub() -> void:
 			push_warning("[FORD-PROBE] probe_ford_paths.gd absent in this build")
 		else:
 			world.add_child(ford.new())
+	if args.has("--bridge-probe"):
+		var bridge: GDScript = load("res://tools/probe_bridge_blast.gd") as GDScript
+		if bridge == null:
+			push_warning("[BRIDGE-PROBE] probe_bridge_blast.gd absent in this build")
+		else:
+			world.add_child(bridge.new())
 	if args.has("--nav-ring-probe"):
 		var ring: GDScript = load("res://tools/probe_nav_ring.gd") as GDScript
 		if ring == null:
