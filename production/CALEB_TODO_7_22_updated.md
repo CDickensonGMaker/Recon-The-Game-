@@ -2646,3 +2646,16 @@ Council: production/war_room/2026-09-14_rpg_dealer_hq_map/ (briefing has your wo
 - STILL OPEN 6: master still sits at daf621cd; whether it follows BaseGame-V1 is yours. origin/master untouched.
 
 **Still red, named:** test_firebase_garrison (57 men, the parked reserve - pre-existing), test_group_walk (household closed 4.1 m of 5 - pre-existing); the census's 14-19 stuck / 5-13 overlaps is the N2 furniture class; the 1024 assault nav stall.
+
+## YOUR "YES" BUILT - the stream, the fords, THE CROSSING, 1024 by default, the pace cap, the sheets at law (2026-09-15)
+
+BaseGame-V1 ec4bb449 -> RPG-build d850bcb3 (merge cdd48021). Both pushed. origin/master untouched (6 still yours).
+
+- THE STREAM (ADR-041 Amendment A): edge to edge across the demo AO 208 m out on the village bearing, 1.85 m deep (nobody wades it), three fords at 0.55 m - F1 the village ford with a fallen log, F2 the ambush ford, F3 the VC monkey-bridge (no bridge prop yet). Exists only at 1024 (at 512 the wire's corner leaves no bank; the 512 plan is byte-identical). The siege's village-side approaches are now the fords; the camp flank is open.
+- THE WAY-STATION 117 m past the ville: quiet = a lean-to and sacks; wary = two men and a cache; hostile = a four-man picket covering the ford. Reads the ledger's band live. Never announced.
+- THE CROSSING: the squad bunched at F1's log 07:30-09:00, the second man slips (the comic's lines verbatim), the ville's runner on the far bank sees you and does not shoot. Force-fired in the probe; a natural bunched crossing is YOUR walk.
+- 1024 IS THE DEFAULT. The 9/14 stall was NOT the map: Godot's NavigationAgent3D caps a path search at 4096 polygons; the ground outside the wire is one island and at 1024 it is flat and fully meshed past the cap, so every VC query was cut short and its retry failed (18,955 errors in 600 s). Uncapped at every agent: the 1024 assault ENDS ("the raid ended at 500s (dawn) - 21 of 45 down", 0 spam). Proxies same box same evening, 1024 vs 512: build 11.6 vs 10.5 s, static memory 837 vs 838 MB (the sheet fix paid for the map), nodes 28,455 vs 19,782; census 0/12/22/0 vs 0/16/7/1 (the 1024 overlaps are the squad's gate-order stack, present at both sizes). NO fps number from anyone: perf_walk.bat, then perf_walk.bat with --demo-map=512 - that pair is YOURS.
+- THE PACE CAP: a wounded survivor's walk home is never more than 2 real minutes longer than a healthy man's from the same wreck (probed on three seeds: worst 71 s over). Arrival = inside the wire (60 m of the centre), not the flagpole.
+- THE SHEETS: the 9 MB crew sheet is 972 KB in the blend itself; fsb_main_v3.glb 44.7 -> 28.5 MB, the M101 chunk 13.6 -> 5.5 MB; crews read the same at 3 and 6 m (renders in production/renders_firebase/crews_AFTER_*.png).
+
+**Left, named:** the nav bake does not know water - a bake box spanning the stream would let men walk the 2.5 m bed (patch spec in the 9/15 stream agent's report: exclude cells deeper than WADE_DEPTH in nav_baker + a ford site so the crossings bake); no monkey-bridge prop at F3; the slip uses the stumble clip (no fall clip); the squad's gate-order stack (0/8 arrived, both sizes) is the census's overlap floor; test_firebase_garrison + test_group_walk still red as before.
