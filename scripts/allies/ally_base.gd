@@ -325,6 +325,19 @@ func _may_engage() -> bool:
 	return weapons_free or Time.get_ticks_msec() < _defend_until_ms
 
 
+## The man's own "in contact" test - the debounced confidence or a sighting inside
+## CONTACT_SEEN_S, never the raw target field. `target` is the nearest enemy inside the
+## sight cap with NO line-of-sight test (a patrol 70 m off through the jungle he cannot
+## see), so target != null alone reads a quiet file as a firefight.
+const CONTACT_CONF_FIGHT: float = 0.4
+const CONTACT_SEEN_S: float = 6.0
+
+
+func in_contact() -> bool:
+	return target != null and is_instance_valid(target) \
+		and (contact_conf > CONTACT_CONF_FIGHT or target_last_seen_time < CONTACT_SEEN_S)
+
+
 func set_order(mode: OrderMode, pos: Vector3 = Vector3.ZERO) -> void:
 	order_mode = mode
 	order_pos = pos
@@ -1278,7 +1291,7 @@ func _evaluate_goals() -> void:
 	# The goal comes from the SHARED scorer (CombatGoals) - the same nine-verb brain
 	# the enemy runs. Before this the squad had five verbs and could not flank,
 	# suppress or fall back (posture merge Part B).
-	if target and _may_engage() and (contact_conf > 0.4 or target_last_seen_time < 6.0):
+	if _may_engage() and in_contact():
 		_refresh_separation()
 		var c := CombatGoals.Context.new()
 		c.current_goal = current_goal

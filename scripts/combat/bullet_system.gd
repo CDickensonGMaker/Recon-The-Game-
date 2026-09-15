@@ -236,6 +236,15 @@ func _impact(b: Dictionary, hit: Dictionary) -> bool:
 		GunFX.impact(scene, hit.position, hit.normal, _surface_is_hard(col))
 		if bool(b.get("mark", true)):
 			GunFX.bullet_hole(scene, hit.position, hit.normal)
+		# The one structure gunfire can cut (Destructible.GUNFIRE_CUTS); every other kind
+		# discards this call inside take_damage.
+		var cut: Destructible = Destructible.owner_of(col)
+		if cut != null:
+			var bite: float = Destructible.gunfire_bite(cut.kind, wd.get_damage())
+			if bite > 0.0:
+				var cut_dist: float = float(b.traveled) + (b.pos as Vector3).distance_to(hit.position)
+				cut.take_damage(maxi(1, int(float(wd.get_damage()) * wd.damage_multiplier_at(cut_dist)
+					* float(b.dmg_scale) * bite)), Enums.DamageType.PHYSICAL, shooter)
 		# SOFT COVER PUNCH-THROUGH: thatch, bamboo, a hooch wall, dense brush.
 		# The round keeps going at reduced energy - a man behind a grass wall is
 		# CONCEALED, not covered.

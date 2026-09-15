@@ -265,6 +265,7 @@ static func tag_ballistics(root: Node, soft: bool) -> void:
 ## prefix table the firebase path uses.
 const PLACED_DESTRUCTIBLE_KINDS := {
 	"weapons_cache": "weapons_cache",
+	"monkey_bridge": "bridge_timber",
 }
 
 
