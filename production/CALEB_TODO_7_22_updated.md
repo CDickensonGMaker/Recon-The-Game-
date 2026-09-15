@@ -2659,3 +2659,13 @@ BaseGame-V1 ec4bb449 -> RPG-build d850bcb3 (merge cdd48021). Both pushed. origin
 - THE SHEETS: the 9 MB crew sheet is 972 KB in the blend itself; fsb_main_v3.glb 44.7 -> 28.5 MB, the M101 chunk 13.6 -> 5.5 MB; crews read the same at 3 and 6 m (renders in production/renders_firebase/crews_AFTER_*.png).
 
 **Left, named:** the nav bake does not know water - a bake box spanning the stream would let men walk the 2.5 m bed (patch spec in the 9/15 stream agent's report: exclude cells deeper than WADE_DEPTH in nav_baker + a ford site so the crossings bake); no monkey-bridge prop at F3; the slip uses the stumble clip (no fall clip); the squad's gate-order stack (0/8 arrived, both sizes) is the census's overlap floor; test_firebase_garrison + test_group_walk still red as before.
+
+## THE LEFTOVERS CLOSED (2026-09-15, autonomous - your standing "keep improving" ask, no new ruling)
+
+BaseGame-V1 33e97e13 -> RPG-build b16918cb. Both pushed. origin/master untouched. PS2 rendering not touched.
+
+- THE BAKE KNOWS WATER: a terrain quad deeper than the wade depth is left out of the nav bake, the three fords are their own nav sites (and a ford that straddles the firebase box is absorbed into it so both banks share one region), and a man steering off the mesh turns along the bank instead of into the stream. --ford-probe: 40 bank-to-bank paths, every point over the bed within 14 m of a ford. Assault at 1024 still ends (500 s, 0 spam); census 1024 now 0 wrong-target / 9 stuck / 17 overlaps / 0 roofs (was 0/12/22/0).
+- THE MONKEY BRIDGE at the third ford: 312 tris cut from the village fence's bamboo rail, 15 m span (the carve has a 2.7 m shoulder past the 4.5 m half-width - a 10 m deck would have hung in the air), pitched to the two bank grades, deck hulls only so a man wading beneath is not walled, soft cover. Renders production/renders_firebase/monkey_bridge_*.png - YOUR EYE. NOT wired to blow: no placed-prop timber kind exists that does not swap in a burned hut; a "bridge_timber" kind is a small follow-up.
+- test_firebase_garrison was a REAL DEFECT: the kit base's 19 men were in the main wire's garrison group, so a stand-to at fsb_main promoted men 450 m away and the lift's ledger counted them as replacements. They are "kit_garrison" now. GREEN.
+- test_group_walk was a STALE REGISTER: the centroid measure cancels on a five-man household whose lead is the rearmost man (followers walk backward into their slots). It measures the lead's closure now (stricter: 10 m, not 5). GREEN.
+- The squad's gate-order stack (0/8 arrived, both sizes) is still the overlap floor - named, left.
