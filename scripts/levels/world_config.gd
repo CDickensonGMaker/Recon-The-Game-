@@ -37,7 +37,7 @@ const NAV_ENABLED: bool = true
 ## game is fought in had no navmesh at all. Every ally, promoted garrison defender and VC
 ## inside the wire fell to NavRouter's direct steering and ground into the first revetment
 ## between him and his destination - the 2026-07-29 "stuck in the spawn" playtest.
-const NAV_SITE_KINDS: Array[String] = ["village", "firebase_main", "aa_site", "outpost", "temple", "pow_camp"]
+const NAV_SITE_KINDS: Array[String] = ["village", "firebase_main", "aa_site", "outpost", "temple", "pow_camp", "ford"]
 
 ## Terrain + building destruction throttle (ADR-031). The scar-decal + veg-clear always
 ## apply immediately (cheap, reads instantly); the expensive parts ride a per-frame budget

@@ -105,14 +105,18 @@ func _run() -> void:
 	_check((fam[0] as Civilian).working_point_pos == (fam[1] as Civilian).working_point_pos,
 		"members share a working point (a shared destination)")
 
-	# 2. POSITIVE: they walk together and arrive together. Measure CLOSURE on the
-	# paddy, not raw displacement - the formation contracts as it forms up, and
-	# that contraction cancels most of the lead's advance in a centroid delta.
-	var d0: float = _centroid(fam).distance_to(DEST)
+	# 2. POSITIVE: they walk together and arrive together. Measure the LEAD's closure on the
+	# paddy: the party's destination is his, followers are handed a slot BEHIND him
+	# (group_walk.gd:34-36), and _assign_households makes civs[0] the lead - the rearmost man
+	# of this line. The four ahead of him walk backward into their slots, so a centroid delta
+	# read 4.1 m for a formation that was working (lead 12.8 m at GROUP_WALK_SPEED 1.3 in 600
+	# frames, spread 12 m -> 4.5 m; measured 2026-09-15). Frozen followers still fail on spread.
+	var lead0: Civilian = GroupWalk.lead_of(fam)
+	var d0: float = lead0.global_position.distance_to(DEST)
 	_drive(fam, FRAMES)
-	var moved: float = d0 - _centroid(fam).distance_to(DEST)
+	var moved: float = d0 - lead0.global_position.distance_to(DEST)
 	var fam_spread: float = _spread(fam)
-	_check(moved > 5.0, "the household closed %.1fm on the paddy" % moved)
+	_check(moved > 10.0, "the lead closed %.1fm on the paddy" % moved)
 	_check(fam_spread < 6.0, "the household stayed together (max spread %.1fm)" % fam_spread)
 	var acted: bool = true
 	for c in fam:

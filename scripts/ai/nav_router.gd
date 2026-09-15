@@ -47,11 +47,36 @@ const OFF_MESH_M: float = 0.5
 ## somewhere else entirely.
 const CLAMP_MAX_M: float = 12.0
 
+## Direct steering reads the grid one stride ahead: water deeper than the wade gate turns
+## the man along the bank instead of into it (the authored stream is 1.85 m; only the fords
+## are floor). One array read per step, three on a deep one.
+const LOOKAHEAD_M: float = 1.5
+static var _grid: GameplayGrid = null
+
 
 func setup(nav_agent: NavigationAgent3D, tree: SceneTree, who: String) -> void:
 	agent = nav_agent
 	lab_nav = tree != null and tree.get_first_node_in_group("lab_navmesh") != null
 	label = who
+	var gw: Node = tree.get_first_node_in_group("game_world") if tree != null else null
+	if gw != null and "gameplay_grid" in gw:
+		_grid = gw.gameplay_grid as GameplayGrid
+
+
+## `direct` unless the next stride lands in deep water; then the bank-side perpendicular
+## that is dry, or `direct` again when he is already in it (out is the only way).
+static func _dry(from: Vector3, direct: Vector3) -> Vector3:
+	if _grid == null or not is_instance_valid(_grid):
+		return direct
+	var flat := Vector3(direct.x, 0.0, direct.z)
+	var l: float = flat.length()
+	if l < 0.01 or _grid.get_water_depth(from + flat * (LOOKAHEAD_M / l)) <= GameplayGrid.WADE_DEPTH_M:
+		return direct
+	var side: Vector3 = Vector3(-flat.z, 0.0, flat.x) / l
+	for s: Vector3 in [side, -side]:
+		if _grid.get_water_depth(from + s * LOOKAHEAD_M) <= GameplayGrid.WADE_DEPTH_M:
+			return s * l
+	return direct
 
 
 ## Which baked box the body stands in. Think rate, never per frame.
@@ -92,13 +117,13 @@ func step(from: Vector3, to: Vector3) -> Vector3:
 	if lab_nav:
 		use_nav = true
 	if agent == null or not use_nav:
-		return direct
+		return NavRouter._dry(from, direct)
 	# A map RID is valid the instant it is created, but every query against it
 	# errors until the server has run its first synchronization. Queries in that
 	# window also return "no path", which reads as is_navigation_finished().
 	var map: RID = agent.get_navigation_map()
 	if not map.is_valid() or NavigationServer3D.map_get_iteration_id(map) <= 0:
-		return direct
+		return NavRouter._dry(from, direct)
 	# Clamp the target onto the mesh. Off-mesh points (a cover point on a berm, an
 	# LP behind a wall, an agent on an eroded vertex) reach is_navigation_finished()
 	# while still metres from the original target.
@@ -189,7 +214,7 @@ func step(from: Vector3, to: Vector3) -> Vector3:
 		# physics climbs the berm instead. A test must not go red for it.
 		push_warning("[NAV-FALLBACK] %s on %s, %.1fm to target, no path - falling back to direct steering" % [
 			label, where, flat.length()])
-	return direct
+	return NavRouter._dry(from, direct)
 
 
 ## A path query with NO polygon cap. The engine's 4096 default is hit by any query that

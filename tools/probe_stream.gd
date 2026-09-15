@@ -60,6 +60,7 @@ func _ready() -> void:
 		_finish()
 		return
 	_grid(world, book.plan.stream, book.plan.get("gate_pos", Vector3.ZERO) as Vector3)
+	_bridge(world, book.plan.stream)
 	# The beat before the way-station: its hostile picket stands 28 m off F1 and a squad man
 	# who sights it aborts the sequence (Pillar 3 - the cast stays mortal and reactive).
 	await _beat(book)
@@ -106,6 +107,46 @@ func _grid(world: GameWorld, stream: Dictionary, gate: Vector3) -> void:
 		print("  [STREAM] %s at %.0f,%.0f  %.0f m from the centre, bearing %.0f deg%s" % [
 			fname, f.x, f.z, v.length(), fposmod(rad_to_deg(atan2(v.x, v.y)), 360.0),
 			"" if gate == Vector3.ZERO else ", %.0f m from the gate" % Vector2(f.x - gate.x, f.z - gate.z).length()])
+
+
+## The monkey bridge stands over F3, its deck hull is where a man walks (a ray at mid-span
+## must hit a monkey_bridge collider), and each deck end lands on its bank: the top surface
+## 1.5 m in from the tip - deck or the ground it is stepped into - sits within 0.4 m of the
+## bank grade sampled just past the shoulder.
+func _bridge(world: GameWorld, stream: Dictionary) -> void:
+	var fords: Dictionary = stream.fords
+	if not fords.has("F3"):
+		return
+	var f3: Vector3 = fords["F3"]
+	var bridge: Node3D = null
+	for n in world.find_children("*monkey_bridge*", "Node3D", true, false):
+		var b := n as Node3D
+		if b != null and Vector2(b.global_position.x - f3.x, b.global_position.z - f3.z).length() <= 12.0:
+			bridge = b
+			break
+	_check(bridge != null, "a monkey_bridge node stands within 12 m of F3")
+	if bridge == null:
+		return
+	var span: Vector3 = bridge.global_transform.basis.x.normalized()
+	var space: PhysicsDirectSpaceState3D = world.get_world_3d().direct_space_state
+	var mid: Dictionary = space.intersect_ray(PhysicsRayQueryParameters3D.create(
+		bridge.global_position + Vector3.UP * 8.0, bridge.global_position + Vector3.DOWN * 4.0, 1))
+	var mid_name: String = "none" if mid.is_empty() else str((mid.collider as Node).name)
+	_check(mid_name.contains("monkey_bridge"),
+		"the deck hull carries a man at mid-span (hit %s at %.2f, floor %.2f)" % [
+			mid_name, (float(mid.position.y) if not mid.is_empty() else -INF),
+			world.terrain_manager.get_height_at(bridge.global_position)])
+	for sgn: float in [-1.0, 1.0]:
+		var tip: Vector3 = bridge.global_position + span * (6.0 * sgn)
+		var hit: Dictionary = space.intersect_ray(PhysicsRayQueryParameters3D.create(
+			tip + Vector3.UP * 8.0, tip + Vector3.DOWN * 4.0, 1))
+		var top_y: float = float(hit.position.y) if not hit.is_empty() else -INF
+		var bank: Vector3 = bridge.global_position + span * (8.0 * sgn)
+		var grade: float = world.terrain_manager.get_height_at(bank)
+		_check(absf(top_y - grade) <= 0.4,
+			"bridge deck end %s lands on the bank (top %.2f, grade %.2f, hit %s)" % [
+				"-X" if sgn < 0.0 else "+X", top_y, grade,
+				"none" if hit.is_empty() else str((hit.collider as Node).name)])
 
 
 func _way_station() -> void:

@@ -849,6 +849,12 @@ func enter_hub() -> void:
 			push_warning("[STREAM-PROBE] probe_stream.gd absent in this build")
 		else:
 			world.add_child(stream.new())
+	if args.has("--ford-probe"):
+		var ford: GDScript = load("res://tools/probe_ford_paths.gd") as GDScript
+		if ford == null:
+			push_warning("[FORD-PROBE] probe_ford_paths.gd absent in this build")
+		else:
+			world.add_child(ford.new())
 	if args.has("--pen-probe"):
 		var pen: GDScript = load("res://tools/probe_firebase_penetration.gd") as GDScript
 		if pen == null:

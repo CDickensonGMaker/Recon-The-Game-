@@ -191,6 +191,9 @@ const STRUCTURES := {
 	"wall_straight_door": {"box": Vector3(4.2, 1.8, 1.6), "y_offset": 0.91, "footprint": Vector2(5.5, 3.0), "scale": 1.0, "mesh": true},  # trimesh in GLB
 	"wall_u_ruin": {"box": Vector3(3.4, 2.5, 2.3), "y_offset": 1.24, "footprint": Vector2(4.5, 3.5), "scale": 1.0, "mesh": true},  # trimesh in GLB
 	"wooden_bridge": {"box": Vector3(18.9, 3.6, 4.1), "y_offset": 1.82, "footprint": Vector2(20.0, 5.5), "scale": 1.0},
+	# monkey_bridge.glb: 15.0 span x 2.54 tall x 1.0 wide, origin on the ford floor at mid-span; the
+	# deck-only -colonly hulls are the whole collision (legs open so a man wades beneath).
+	"monkey_bridge": {"box": Vector3(15.0, 2.54, 1.0), "y_offset": 1.27, "footprint": Vector2(16.0, 2.0), "scale": 1.0, "mesh": true},
 }
 
 
@@ -249,6 +252,7 @@ const MATERIALS := {
 	"latrine": Mat.THATCH, "shower_point": Mat.THATCH, "tent": Mat.THATCH,
 	"burned_hut": Mat.WOOD, "gate_fence": Mat.WOOD, "dock_pier": Mat.WOOD,
 	"wooden_bridge": Mat.WOOD, "pow_cage": Mat.WOOD, "weapons_cache": Mat.WOOD,
+	"monkey_bridge": Mat.WOOD,
 	"plantation_house": Mat.WOOD, "barracks": Mat.WOOD,
 	"nha_ruong_01": Mat.WOOD, "nha_ruong_02": Mat.WOOD,
 	"ox_cart_01": Mat.WOOD, "fence_run_01": Mat.WOOD,
