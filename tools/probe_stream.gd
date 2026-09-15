@@ -7,14 +7,18 @@
 ## off. Then:
 ##   1. the grid reads impassable at 20 points along the stream and passable at the three fords;
 ##   2. the way-station stamps three ways under three ledger bands (a deed noted, a re-stamp);
-##   3. the crossing beat fires once on demand, its four lines go out once, the runner saw the
-##      squad, and a second fire is refused.
+##   3. the crossing beat fires once the file has closed up on F1 with no man in contact (its
+##      own trigger test), its four lines go out once, the runner saw the squad, and a second
+##      fire is refused.
 ## Exit 1 on any failure. At 512 the plan carries no stream and the probe says so and fails.
 extends Node
 
 const HmLedgerS := preload("res://scripts/world/hm_ledger.gd")
 const SETTLE_S: float = 20.0
 const LINE_WAIT_S: float = 16.0
+## Eight men at CATCHUP_MAX_PER_TICK 2 per CATCHUP_TICK_S 1.0 is four ticks; the rest is slack
+## for the FOLLOW slot settle, not a timeout to widen.
+const BUNCH_WAIT_S: float = 12.0
 const SAMPLES: int = 20
 
 var _fail: int = 0
@@ -62,7 +66,7 @@ func _ready() -> void:
 	_grid(world, book.plan.stream, book.plan.get("gate_pos", Vector3.ZERO) as Vector3)
 	_bridge(world, book.plan.stream)
 	# The beat before the way-station: its hostile picket stands 28 m off F1 and a squad man
-	# who sights it aborts the sequence (Pillar 3 - the cast stays mortal and reactive).
+	# who sees it aborts the sequence (Pillar 3 - the cast stays mortal and reactive).
 	await _beat(book)
 	_way_station()
 	_finish()
@@ -168,20 +172,42 @@ func _way_station() -> void:
 		and near_ford and ws._cache == null, "hostile after a killing: a picket of four covering F1 (band %s)" % ws.band)
 
 
+## The beat fires through its OWN trigger condition, not blind: the player stands on F1, the
+## FOLLOW catch-up (squad_system, 2 men a tick) brings the file up behind him, and `fire()`
+## goes only once `squad_bunched` reads true - the file closed up on the log and no man in
+## contact. Fired blind at sim 06.67 it went into whatever ambient patrol the teleport had
+## just woken inside the 140 m sight cap (six seeded runs, 2026-09-15). The dormant ambient
+## patrols are HELD for the beat, as the stand-to is: they are the hunt net's business, and a
+## seat that lands on the ford (seed 1: 1 m off F1) is a firefight, not a beat.
 func _beat(book: BeatBook) -> void:
 	_check(book.beats.has("crossing"), "the crossing beat loaded (%s)" % ", ".join(book.beats.keys()))
+	var trig: Dictionary = (book.beats.get("crossing", {}) as Dictionary).get("trigger", {})
 	var player: Node3D = GameManager.player as Node3D
 	var f1: Vector3 = (book.plan.stream as Dictionary).fords.get("F1", Vector3.ZERO)
+	var held: int = 0
+	for n in get_tree().get_nodes_in_group("lazy_groups"):
+		var lg := n as LazyGroup
+		if lg != null and lg.group_tag.begins_with("ambient_patrol") and not lg._spawned:
+			lg.set_physics_process(false)
+			held += 1
+	print("  [BEAT] %d dormant ambient patrols held for the beat" % held)
 	if player != null and f1 != Vector3.ZERO:
 		player.global_position = f1 + Vector3.UP * 1.0
-	await get_tree().create_timer(2.0).timeout
+	var waited: float = 0.0
+	while waited < BUNCH_WAIT_S and not book.squad_bunched(trig):
+		await get_tree().create_timer(1.0).timeout
+		waited += 1.0
 	for m: AllyBase in book._squad_men():
 		var tgt: Node3D = m.target
-		print("  [SQUAD] %s at %.0f,%.0f target %s" % [m.name, m.global_position.x, m.global_position.z,
-			"-" if tgt == null else "%s at %.0f,%.0f" % [tgt.name, tgt.global_position.x, tgt.global_position.z]])
+		print("  [SQUAD] %s at %.0f,%.0f order %d target %s%s" % [m.name, m.global_position.x,
+			m.global_position.z, m.order_mode, "-" if tgt == null else "%s at %.0f,%.0f (%.0f m)" % [
+				tgt.name, tgt.global_position.x, tgt.global_position.z,
+				m.global_position.distance_to(tgt.global_position)],
+			" IN CONTACT" if m.in_contact() else ""])
+	_check(book.squad_bunched(trig), "the file closed up on the F1 log with no man in contact (%.0f s)" % waited)
 	var lines: Dictionary = (book.beats.get("crossing", {}) as Dictionary).get("lines", {})
 	var before: Array[String] = _toasts.duplicate()
-	_check(book.fire("crossing"), "crossing fires on demand")
+	_check(book.fire("crossing"), "crossing fires on demand (sim %05.2f)" % SimClock.sim_hour)
 	await get_tree().create_timer(LINE_WAIT_S).timeout
 	for k in lines.keys():
 		var line: String = str(lines[k])

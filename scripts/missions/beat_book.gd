@@ -161,13 +161,15 @@ func _poll_condition(cond: String, trig: Dictionary) -> bool:
 		"first_flare_after_seam":
 			return _first_flare_after_seam(float(trig.get("radius", 40.0)))
 		"squad_bunched":
-			return _squad_bunched(trig)
+			return squad_bunched(trig)
 	return false
 
 
-## The point man within `radius` of the place and at least `bunch_count` living squad men
-## (him included) inside `bunch_radius` of it - a file closed up at a crossing.
-func _squad_bunched(trig: Dictionary) -> bool:
+## The point man within `radius` of the place, at least `bunch_count` living squad men
+## (him included) inside `bunch_radius` of it, and no squad man in contact - a file closed
+## up at a QUIET crossing. A beat is once per day: fired into a firefight it aborts on its
+## first tick and the day's beat is spent (the 2026-09-15 abort).
+func squad_bunched(trig: Dictionary) -> bool:
 	var place: Vector3 = _resolve_place(str(trig.get("place", "")))
 	if place == Vector3.ZERO:
 		return false
@@ -180,6 +182,8 @@ func _squad_bunched(trig: Dictionary) -> bool:
 	var bunch_r: float = float(trig.get("bunch_radius", 12.0))
 	var n: int = 0
 	for m in _squad_men():
+		if m.in_contact():
+			return false
 		if ((m.global_position - place) * flat).length() <= bunch_r:
 			n += 1
 	return n >= int(trig.get("bunch_count", 4))
