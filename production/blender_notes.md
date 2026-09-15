@@ -3816,3 +3816,193 @@ are seven men (moustaches on a / 1916 / line, the scar on the boy), kepi a low c
 (`grep ww1 scripts/` = nothing). **Not done:** the rifle bolt handle still sticks out 78 mm (kit geometry); Lebel vs
 Gew98 differ only by length, fore-end and the sight; the 1916 gas-mask tin; the Y-brace path is still the US
 suspender geometry recoloured; ears on the roster wrap.
+
+
+## 2026-09-14 - fb_sandbag_heavy re-cut from a real parapet segment
+
+Caleb, after the 9/13 playtest: *"we changed the quality of the sandbags for the main ring around the
+firebase and they are just like flat planes now. so either we need to make the sandbag ring way less
+model heavy or put the sandbags back to how they were."* The ring is 224 instances of the ONE kit part
+`fb_sandbag_heavy`, stamped from `data/site_plans/fsb_main_parapet.json`. That part's mesh was the
+`sandbag_heavy` asset banned 2026-07-29 (memory `banned-sandbag-heavy-asset`) - 176 tris of scattered
+non-manifold shells whose 1.174 m bbox axis is DEPTH, not height. Re-skin done: he gets them back.
+
+**Source, and it is not new geometry.** `firebase_v3.2.blend` still holds all 81 `fb_sbg_seg_*`
+segments of the parapet he liked. Straightness census over all 81 (chord deviation / run length):
+`fb_sbg_seg_064` - run 6.019 m, max bow 0.2605 m, height 1.1823 m, 1156 tris = 192 tris/m. Its run was
+aligned to +X by the principal axis of its own vertices in XY, then a 2.2833 m window was bisected out
+at x = +-1.14165 and the open ends capped. No procedural bag was generated (`no-procedural-geometry-generation`).
+
+**Numbers, old GLB vs new, both read back out of the GLB in an empty headless scene (Blender 5.0.1):**
+
+| | OLD (banned mesh) | NEW (cut from fb_sbg_seg_064) |
+|---|---|---|
+| visual tris | 176 | 567 |
+| collider tris | 176 (copy of the visual) | 12 (box proxy) |
+| file tris | 352 | 579 |
+| meshes / names | `fb_sandbag_heavy`, `fb_sandbag_heavy_000-colonly` | unchanged |
+| materials | 1 (`Sandbags.051`) | 1 (`fb_sandbag_wall`) |
+| embedded image | `Sandbags` 64x64, 2,787 B | `fb_sandbag_wall` 320x320, 104,137 B |
+| Godot bbox X (length) | -1.1417 .. +1.1417 | -1.1416 .. +1.1416 |
+| Godot bbox Y (height) | -0.5407 .. +0.5407 | -0.5407 .. +0.6367 |
+| Godot bbox Z (depth) | -0.5872 .. +0.5872 | -0.161 .. +0.161 |
+| size | 2.2833 x 1.0814 x 1.1744 | 2.2832 x 1.1774 x 0.322 |
+| ngons / loose verts / doubled / zero-area | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 |
+| max material_index vs slots | 0 vs 1 | 0 vs 1 |
+| file | 22,964 B | 143,200 B |
+
+**What is deliberately identical:** the two node names, the `-colonly` suffix placement (number BEFORE
+the suffix), the part id prefix `fb_sandbag_heavy` that `fire_support_bench.gd:50` and the
+`sandbag_wall` / 140 hp row in `data/world/kit_parts.json` key on, the half-length 1.14165 that
+`tools/gen_site_plan_firebase.py` HALF_X assumes, and the ground line at Y = -0.5407 that the same
+file's OFFSET_Y 0.54 compensates for. The plan's 224 pos/yaw entries need no edit.
+
+**What changed and why it is safe.** Height +9.6 cm (the real wall is 1.177 m, 4 courses at 0.26 m plus
+a lumpy top) - it grows UPWARD only, the ground line is untouched. Depth 1.174 -> 0.322 m: the old
+1.174 was the banned mesh's SCATTER, not a wall thickness; the parapet he liked is ~0.3 m of bags.
+Measured the consequence rather than assuming it: over the 174 consecutive plan pairs closer than
+3.5 m, the median end-to-end OVERLAP is 0.278 m and the minimum is positive - the ring is continuous
+along its run at any depth. Sharpest consecutive turn in the plan is 3.9 deg, which offsets a joint
+laterally by 0.078 m, well inside 0.322.
+
+**Collider is now a 12-tri box proxy** instead of a copy of the visual mesh, which the export contract
+explicitly endorses. Across 224 instances that is 2,688 collision tris against 39,424 before and
+127,008 if the visual had been copied - and unlike the banned part's collider it has no holes for a
+round to pass through. Ballistics still resolves `hard_surface` (sandbag is not in `FSB_SOFT_PREFIXES`).
+
+**Texture:** `assets/.../firebase/tex/fb_sandbag_wall.png`, 320x320 at the ruled 160 px/m
+(1 UV tile = 2.0 m of wall). `python tools/shrink_oversized_textures.py` dry run: **0 glbs, 0.0 MB** to do.
+
+**Three defects this job produced, all caught by measurement, none visible in a vertex or normal check:**
+1. `l.vert.index` is STALE inside a bmesh after an op unless `index_update()` is called. A UV lookup
+   keyed on it matched nothing and printed no error. Key on the BMVert object.
+2. Choosing a projection plane from `f.normal` is wrong for a cap n-gon cut across lumpy geometry - the
+   cap is crumpled, its normal read as Z-dominant, and the end of the wall got mapped (x, y) with x
+   constant across the whole face. It rendered as vertical stripes. **Choose the projection axes by the
+   face's own EXTENT** (drop the smallest), never by its normal.
+3. The donor is not box-projected as a whole: every bag is its own UV island, u runs 0..35 across
+   2.3 m of wall. A linear fit of u against x leaves 27 UV units of residual. Any "derive the
+   projection" shortcut on this asset family is a false start; sample the wall's own UVs instead.
+
+**Renders (read, not just written):** `production/renders_firebase/sandbag_segment_single.png` (front,
+three-quarter, cut end, with a 1.8 m rod) and `sandbag_segment_row.png` (five segments at the plan's
+median 2.006 m pitch, three-quarter, and a joint close-up). Bags read as bags; the joint shows no gap
+and no seam.
+
+**Left undone:** the old sidecar `fb_sandbag_heavy_Sandbags.png(.import)` in the kit folder is now
+orphaned - Godot will write `fb_sandbag_heavy_fb_sandbag_wall.png` on reimport. Not deleted, because
+the brief was one file. Not run: Godot itself (a headless census held the repo). The `2.28 x 1.08 x
+1.17 m` note in `data/world/kit_parts.json` is now stale on the last two figures.
+
+
+## 2026-09-14 - fb_duckboard: the ambient floorboard path, cut from fb_bench
+
+Caleb: *"add more ambient floorboard paths around the firebase."* New kit part
+`assets/world/building models/structures/firebase/kit/fb_duckboard.glb`, consumed by
+`tools/gen_duckboard_plan.py` (SECTION_M 2.40, +X long axis, pos = section centre) and stamped by
+`site_planner.gd _stamp_duckboards` from `data/site_plans/fsb_main_duckboards.json` (170 sections).
+Scripts: `_scratch/build_fb_duckboard.py` (build + export) and `_scratch/verify_fb_duckboard.py`
+(read-back census + renders). Both re-runnable from an empty scene; headless, Blender 5.0.1.
+
+**Donor, not generated.** `fb_bench` mesh appended read-only out of `firebase_v3.2.blend` via
+`bpy.data.libraries.load` (the blend was never written). Its cross-brace (0.04 x 0.28 x 0.04, 6 quads)
+duplicated 12x and vert-fitted into slats; its seat plank (1.80 x 0.30 x 0.04) duplicated 2x into
+runners and 1x into the collider box. Bottom faces of slats and runners deleted (168 -> 140 tris).
+Slat pitch 0.20 m x 12 = 2.40 m exactly, so the gap ACROSS a section joint equals the gap inside a
+section (0.11 m): five sections nose to tail show no seam.
+
+**Read back out of the GLB in an empty scene:**
+
+| | fb_duckboard | fb_duckboard_000-colonly |
+|---|---|---|
+| tris / polys / verts | 140 / 140 / 280 (112 unique positions) | 12 / 12 / 24 (8) |
+| Godot bbox X / Y / Z | -1.20..+1.20 / 0.000..+0.080 / -0.30..+0.30 | identical |
+| ngons / loose / doubles / zero-area | 0 / 0 / 0 / 0 | 0 / 0 / 0 / 0 |
+| material slots, max material_index | 1 (`fb_timber`), 0 | 1, 0 |
+| UV | 1 layer, 118 unique coords, box-projected by face EXTENT at 1 tile = 1.6 m (160 px/m on 256 px) | 4 |
+
+Embedded image `fb_timber` 256x256 png, 61,789 B; file 74,628 B. `tools/shrink_oversized_textures.py`
+dry run: 0 glbs. Top faces sit at Y = 0.055 (runners) and 0.080 (slats). Row added to
+`data/world/kit_parts.json` with `"destructible": ""` - `kit_registry.gd contract_gap` accepts an empty
+kind with empty `structure_meshes` (the `kind != "" and meshes.is_empty()` branch is the only refusal),
+so a soft, non-destructible walkway is a legal row.
+
+**Renders (read back):** `production/renders_firebase/duckboard_single.png` (three-quarter with a
+1.8 m rod), `duckboard_single_end.png`, `duckboard_run.png` (five at 2.40 m pitch + one at 69.4 deg),
+`duckboard_run_turn.png` (the joint). Two straight sections at a 69.4 deg turn overlap at the inner
+corner and leave a wedge at the outer; that is the plan's geometry, not the part's.
+
+**Three traps this job produced, each caught only by reading, not by the census:**
+1. **glTF-imported objects come in with `rotation_mode = 'QUATERNION'`.** A `rotation_euler` write
+   on a copy of one is silently ignored - the "turn" section rendered parallel, offset 1.12 m, and
+   every number in the census was green. Set `rotation_mode = 'XYZ'` first, and print the yaw back.
+2. **An appended donor mesh drags its whole material list with it** (11 slots here). A material
+   created afterwards with the same name becomes `fb_timber.001` and the GLB ships it; Godot would
+   then write a `fb_duckboard_fb_timber_001.png` sidecar. Remove the donor datablock and
+   `orphans_purge` BEFORE creating your own material, and assert the name.
+3. **`bpy.data.orphans_purge` eats your own fresh, not-yet-linked meshes too** - `meshes.new()` +
+   `bm.to_mesh()` has zero users until an object links it. Purging after that point raised
+   `StructRNA of type Mesh has been removed` on the next touch. Purge early, right after the donor
+   bmesh is extracted (a bmesh is independent of its source datablock).
+
+**Left undone:** Godot not run (no reimport, no `.import` sidecar yet - it appears on his next editor
+open). The wedge/overlap at sharp turns in `gen_duckboard_plan.py` is unmeasured against the 170
+planned sections. `_scratch/fb_duckboard_work.blend` is the working scene, disposable.
+
+
+## 2026-09-14 - fb_toc_i rebuilt, fb_gate_gap_i seated on the mound (headless, firebase_v3.2.blend)
+
+Scripts (re-runnable, `_scratch/`): `toc_build.py` (from the ORIGINAL toc island set - it classifies the
+generator's islands, so it does not re-run on the rebuilt mesh), `toc_repair_stringers.py`, `gate_build.py`
+(idempotent: skips the leaves if a leaf sheet already exists), `mound_probe.py` (float gaps).
+
+**The TOC was never enterable, and no document said so.** `fb_terrain_mound` runs at grade THROUGH the
+TOC footprint (27 mound verts inside it, world z 3.281-3.477 vs TOC origin 3.390). The generator's dug pit
+(PSP floor at world 2.36, 1.03 m below grade) was buried under the walkable mound, so the in-game floor was
+the mound and the roof stringers sat 1.05 m above it. The furniture (`fb_int_*`, placed at 3.218 by
+`gen_fb_interior.py` off `min(vertex z)` of a transform that has since changed) was 0.15 m UNDER the mound;
+the two hanging bulbs hung at 7.818, above the roof. Fix: pit/PSP floor/steps deleted (buried fossils, 216
+tris), a PSP floor at local +0.02..+0.10 (above every mound vert), roof lifted 1.20 m, furniture + prop_
+markers + `work_radio.001`/`prop_map` moved to the floor, bulbs re-hung from the stringers.
+
+**Numbers (object space, grade = local z 0):** tris 5032 -> 5908 (budget 6000), verts 2882 -> 3400,
+ngons 0, loose 0, zero-area 0, doubles(1e-4) 92 (coincident corners of abutting boxes and the stacked
+blast-wall courses; the kit does the same), max material_index 9 of 11 slots. Headroom over the floor: 2.14 m
+under a stringer, 2.355 m between stringers, everywhere sampled. Doorway 1.24 wide x 1.94 clear (jambs at
+x +-0.62, sill z 0.10). `door_main.019` at local (0, -4.6) still faces the doorway; the ray marker->sill is
+clear; straight out of the door hits the blast wall at 2.12 m (top at local z 1.98, two courses of the
+front-left revetment run, x -2.29..0.79, so you turn to enter). Bounds x -4.34..4.73, y -5.31..5.52 (blast
+wall and the two mast guys), z -0.06..9.03 (7 m RC-292 mast behind the east corner). No mesh other than the
+TOC's own furniture overlaps the new envelope (checked every mesh bbox in TOC space).
+
+**Donors, per Caleb's no-procedural-geometry law:** every new box is a `bmesh.ops.duplicate` of one
+existing 6-face box island in fb_toc_i (a wall-head plate, the PSP floor, an antenna pole) with its eight
+corners moved; berm wedges are those boxes with the top-outer edge merged onto the top-inner edge; the blast
+wall is two translated copies of a real fb_kit sandbag run plus its top course. Nothing was made from a
+primitive. Materials all from the existing 11 slots (fb_timber, fb_psp, fb_earth, fb_gunmetal, fb_sandbag_wall).
+
+**Trap: a 0.02 tolerance on box height matched the 0.18 m stringers as 0.20 m plates** (|0.18-0.20| hits
+`< 0.02` in float) and my plate-extension pass collapsed all ten stringers to lines - 40 zero-area faces,
+caught only by the zero-area census AFTER the save. Repaired in place from the plate donor. Lesson: classify
+generator boxes by EXACT size (`< 0.005`), and run the zero-area/doubles census BEFORE `--save`, not after.
+
+**Gate.** Measured float against the mound (`obj.ray_cast` on `fb_terrain_mound` in its own space, 5 samples
+per island footprint): posts +0.136/+0.044, flank runs +0.198/+0.152, chicane runs +0.115/+0.225/+0.125.
+After: post bottoms extended to -0.30 (tops untouched, the bar keeps 2.78 m over the road), every sandbag run
+translated to -0.05 with its top course. Added from the post donor: four 0.08 posts under the guard-post
+corrugated sheet, two 3.6 x 1.65 m timber-frame leaves (corrugated infill, diagonal brace) hinged on the
+posts' inner faces and swung 85 deg to the inside, bottom rail 0.10 over the mound at the hinge. Gate
+2606 -> 2798 tris (budget 3000). Clear width between the posts at z 1.0: 8.66 m at y=0, 8.36 at y=2.
+No concertina tie-in (no wire donor in the gate's material slots - `bwire_card_ring` uses the
+`barbwire_impostor` material the gate mesh does not carry). SOCKET/FACE_OUT/APPROACH markers untouched.
+
+**Export:** `reexport_firebase_v3.py` -> 44,699,844 B (was 41,011,940), md5 8f3469b6c674e1953354faf933f18f2a,
+5810 nodes, 2307 -colonly all terminal, 0 stray; `fb_toc_i` + `fb_toc_i_1517-colonly` 5908 tris,
+`fb_gate_gap_i` + `fb_gate_gap_i_1630-colonly` 2798, `fb_road_gate` 4, `fb_duckboard_toc` 4. The collider
+index moved 1516 -> 1517 and 1629 -> 1630 (positional numbering; one object was added earlier in the
+scene order). `fsb_main_v3_mound.json` IS rewritten by every export from constants: mtime moved, md5
+14d869e6b9259bc63a66b245eca48662 unchanged. `shrink_oversized_textures.py` dry run: 0. BUT two embedded
+images are 9,051,883 B each (`better textures`, `recovered_ref_factions`, the 3600x5700 faction sheets on the
+staged crews) - they are EXEMPT from that tool by name (`TARGET_NAMES`) and only `shrink_master_sheets.py`
+touches them (dry run: 9.1 -> 3.6 MB at 0.5, still over the law; `kit/fb_emplacement_m101.glb` carries the
+same sheet). Pre-existing; not applied here - the overseer's call.

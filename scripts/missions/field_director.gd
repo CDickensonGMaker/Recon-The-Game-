@@ -800,8 +800,10 @@ func on_informer_escaped(from_pos: Vector3, last_seen: Vector3) -> void:
 	if away.length() < 1.0:
 		away = Vector3(1, 0, 0)
 	away = away.normalized()
+	# Seeded from the place and the mission, never the clock: the same informer turning at the
+	# same spot brings the same men from the same bearings every run (ADR-010).
 	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(from_pos) ^ int(Time.get_ticks_msec())
+	rng.seed = hash(from_pos) ^ (world.mission_seed if world != null else 0)
 	for i in range(INFORMER_RESPONSE):
 		var arc: float = deg_to_rad(rng.randf_range(-50.0, 50.0))
 		var dir: Vector3 = away.rotated(Vector3.UP, arc)

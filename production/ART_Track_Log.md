@@ -22,6 +22,26 @@ band, DA Form 20, K-ration scrap, letter, folded topo. **Unused: `cover.png`** â
 closed-journal state. Ship it or cut it.
 
 
+## THE SANDBAG RING IS A SANDBAG WALL AGAIN - DONE 2026-09-14
+
+`fb_sandbag_heavy.glb` (the ONE part the firebase's 224-piece perimeter is stamped from) carried the
+mesh Caleb banned on 2026-07-29 - 176 tris of scattered flat shells - which is why the ring read as
+flat planes in the 9/13 playtest. Replaced in place with a 2.2833 m window cut out of `fb_sbg_seg_064`,
+one of the 81 baked parapet segments still sitting in `firebase_v3.2.blend`, i.e. the wall he liked.
+Visual 176 -> 567 tris, one material, one 320x320 sheet at 104 KB (the ruled 160 px/m), 0 ngons, 0
+loose verts, 0 doubled faces, 0 zero-area faces, max material_index 0 against 1 slot. Length and
+ground line are byte-for-byte the old contract - X -1.1416..+1.1416, base Y -0.5407 - so the 224
+pos/yaw entries in `data/site_plans/fsb_main_parapet.json`, the `fb_sandbag_heavy` prefix in
+`fire_support_bench.gd:50` and the `sandbag_wall` / 140 hp row in `data/world/kit_parts.json` all still
+land; the node pair `fb_sandbag_heavy` + `fb_sandbag_heavy_000-colonly` is unchanged. The wall grew
+9.6 cm taller (1.1774 m, upward only) and lost the banned mesh's phantom 1.17 m depth (now 0.322 m of
+actual bags); the ring stays continuous because the plan overlaps consecutive parts by a median
+0.278 m and its sharpest turn is 3.9 deg. The `-colonly` twin is now a 12-tri box proxy rather than a
+copy of the visual, which the destructible-export contract endorses: 2,688 collision tris across the
+ring instead of 39,424, with no holes for a round to slip through. `shrink_oversized_textures.py` dry
+run 0 oversized. Renders: `production/renders_firebase/sandbag_segment_single.png` and
+`sandbag_segment_row.png`. NOT verified in Godot - no engine run this session.
+
 Everything below is verified absent (or stand-in) as of audit #3. Ordered by impact within each
 category. `[bead]` = tracked. Blender split per workflow: Caleb poses/models, Claude stages/exports.
 

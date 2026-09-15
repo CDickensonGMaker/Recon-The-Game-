@@ -60,6 +60,15 @@
 		"supplies": ["perimeter"],
 		"note": "Collision added 2026-09-09. 2.14 x 0.88 x 0.48 m."
 	},
+	"fb_duckboard": {
+		"destructible": "",
+		"structure_meshes": [],
+		"soft": true,
+		"crew": [],
+		"demands": [],
+		"supplies": [],
+		"note": "Built 2026-09-14 from fb_bench donor boxes (firebase_v3.2.blend), no procedural geometry. Measured off the GLB: 2.40 x 0.08 x 0.60 m, min Y = 0 (ground-contact origin, KIT_PART_CONTRACT 2.1), 140 visual tris + 12-tri box collider fb_duckboard_000-colonly, one material fb_timber (256 px, 61,789 B embedded). Stamped by _stamp_duckboards from fsb_main_duckboards.json; a board is a thing to walk on: no destructible, soft, no group."
+	},
 	"fb_gate_assembly": {
 		"destructible": "tower",
 		"structure_meshes": ["fb_gate_tower"],
