@@ -1,15 +1,15 @@
 ## test_demo_planner.gd - MissionGenerator.plan_demo_world (mission_generator.gd:666-800),
 ## the planner behind the EA product (demo_game.gd, plan_demo_world -> build_patrol_world
-## on a 512m map). No automated coverage existed for it before this file.
+## on the GameFlow.DEMO_MAP_SIZE map). No automated coverage existed for it before this file.
 ##
-## Builds a bare GameWorld the way game_flow.gd:582-589 does for demo_mode (map_size 512,
-## spawn_player_on_ready false) - the planner only reads terrain_manager/vegetation_manager/
+## Builds a bare GameWorld the way game_flow.gd enter_hub does for demo_mode (map_size
+## GameFlow.DEMO_MAP_SIZE, spawn_player_on_ready false) - the planner only reads terrain_manager/vegetation_manager/
 ## gameplay_grid, so player/squad/director are unneeded weight.
 ## Run: godot --headless --path . res://tests/test_demo_planner.tscn -- --test-save
 extends Node
 
 const DEMO_SEED: int = 29072026   ## DemoGame.DEMO_SEED - the shipped seed
-const MAP_SIZE: float = 512.0     ## GameFlow.DEMO_MAP_SIZE
+const MAP_SIZE: float = GameFlow.DEMO_MAP_SIZE
 
 var _failures := 0
 

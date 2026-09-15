@@ -117,6 +117,12 @@ static func promoted_count() -> int:
 	return _near.size()
 
 
+## The third ring: men past TerrainWatchdog.SUSPEND_DIST with physics and brain off, as of
+## the watchdog's last completed pass.
+static func asleep_count() -> int:
+	return TerrainWatchdog.asleep
+
+
 ## Window-local, so a 5 s row reports what happened IN that window and not a single
 ## instant of it. A once-per-window sample would have missed every peak by construction
 ## - the same class of instrument defect as the spike catcher that averaged over its own

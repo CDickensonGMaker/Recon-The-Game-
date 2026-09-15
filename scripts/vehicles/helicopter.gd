@@ -5,6 +5,9 @@ extends Node3D
 
 signal landed(heli: Helicopter, lz: LandingZone)
 signal took_off(heli: Helicopter)
+## Ground contact after shoot_down(): the airframe is DESTROYED and stays where it fell until
+## whoever asked for the crash replaces it with a wreck.
+signal crashed(pos: Vector3)
 
 enum State { IDLE, FLYING, LANDING, LANDED, TAKING_OFF, CRASHING, DESTROYED }
 
@@ -44,7 +47,18 @@ var _rotor_rpm: float = 0.0      ## 0..1, spools up/down with state
 ## The rotors are driven in code, not by the GLB's baked clips: those are six
 ## separate rotation/scale tracks that would need an AnimationTree to play
 ## together, and code lets the RPM spool with the flight state.
-const AIRFRAME_VISIBILITY_END_M: float = 1200.0
+const AIRFRAME_VISIBILITY_END_M: float = 1500.0
+
+## A ship shot down keeps flying its leg until it is this close to the crash point, then goes
+## in: the hit is seen near where the wreck lands, not a map away from it.
+const DOOMED_BREAK_M: float = 150.0
+const CRASH_FORWARD_MPS: float = 22.0
+const CRASH_SINK_MIN_MPS: float = 5.0
+const CRASH_TRAIL_SHEET: String = "sheets/fire_loop_sheet"
+
+var _crash_target: Vector3 = Vector3.ZERO
+var _doomed: bool = false
+var _trail: GPUParticles3D = null
 
 
 func _ready() -> void:
@@ -219,6 +233,56 @@ func take_off() -> void:
 	state = State.TAKING_OFF
 
 
+## The hit. A flying ship keeps its leg until DOOMED_BREAK_M from crash_pos, then falls toward
+## it trailing fire; a ship already on the ground or already falling ignores a second hit.
+## The pad reservation is released here - a ship that will never land must not hold the pad.
+func shoot_down(crash_pos: Vector3) -> void:
+	if _doomed or state == State.DESTROYED or state == State.CRASHING:
+		return
+	_doomed = true
+	_crash_target = crash_pos
+	if _lz != null and is_instance_valid(_lz):
+		_lz.helicopters_present = maxi(0, _lz.helicopters_present - 1)
+		_lz = null
+	_build_fire_trail()
+	if state != State.FLYING or _flat_to(crash_pos) <= DOOMED_BREAK_M:
+		state = State.CRASHING
+
+
+func is_shot_down() -> bool:
+	return _doomed
+
+
+func _flat_to(p: Vector3) -> float:
+	return Vector2(p.x - global_position.x, p.z - global_position.z).length()
+
+
+## World-space emitter: the burning puffs stay where the airframe was, which IS the trail.
+func _build_fire_trail() -> void:
+	if DisplayServer.get_name() == "headless" or _trail != null:
+		return
+	var trail := GPUParticles3D.new()
+	trail.amount = 48
+	trail.lifetime = 4.0
+	trail.local_coords = false
+	var proc := ParticleProcessMaterial.new()
+	proc.direction = Vector3.UP
+	proc.spread = 12.0
+	proc.initial_velocity_min = 0.6
+	proc.initial_velocity_max = 1.6
+	proc.gravity = Vector3(0.0, 0.5, 0.0)
+	proc.scale_min = 1.4
+	proc.scale_max = 2.6
+	proc.color = Color(1.0, 0.55, 0.2)
+	proc.color_ramp = GunFX._smoke_fade_ramp()
+	trail.process_material = proc
+	trail.draw_pass_1 = GunFX._fx_quad("heli_trail_quad", 2.4,
+		GunFX._sheet_mat("heli_trail_mat", CRASH_TRAIL_SHEET, 4, 4, false))
+	trail.position = Vector3(0.0, 0.5, 2.5)
+	add_child(trail)
+	_trail = trail
+
+
 ## A flight reaped mid-cycle (air_traffic's MAX_FLIGHT_SECONDS) must release its pad
 ## reservation, or the pad reads occupied forever and no bird ever lands again.
 func _exit_tree() -> void:
@@ -258,21 +322,46 @@ func _physics_step_helicopter(delta: float) -> void:
 
 
 
+## Falls TOWARD the crash point when one was given (shoot_down), straight ahead otherwise. The
+## sink rate is whatever brings the ship to the ground as it reaches the point, never slower
+## than CRASH_SINK_MIN_MPS, so a hit close to the point still goes in and a hit far from it
+## does not belly-land a kilometre short.
 func _process_crashing(delta: float) -> void:
 	var forward := -global_transform.basis.z
-	global_position += forward * 18.0 * delta
-	global_position.y -= 16.0 * delta
+	var sink: float = 16.0
+	if _crash_target != Vector3.ZERO:
+		var flat := Vector3(_crash_target.x - global_position.x, 0.0, _crash_target.z - global_position.z)
+		var dist: float = flat.length()
+		if dist > 2.0:
+			var dir: Vector3 = flat / dist
+			rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), 2.0 * delta)
+			forward = -global_transform.basis.z
+			var t_left: float = maxf(dist / CRASH_FORWARD_MPS, 0.4)
+			sink = maxf(CRASH_SINK_MIN_MPS, (global_position.y - _ground_y(_crash_target)) / t_left)
+		global_position += forward * CRASH_FORWARD_MPS * delta
+	else:
+		global_position += forward * 18.0 * delta
+	global_position.y -= sink * delta
 	rotation.z = lerpf(rotation.z, 0.6, 1.5 * delta)
 	var ground: float = _ground_y(global_position)
 	if global_position.y <= ground + 0.5:
 		global_position.y = ground + 0.5
 		state = State.DESTROYED
+		if _trail != null and is_instance_valid(_trail):
+			_trail.emitting = false
+		# The listener takes its men off the ship BEFORE the airframe blows: who lives is the
+		# roll's call, not the blast radius's.
+		crashed.emit(global_position)
 		# A shallow scar, not a pit trap: survivors must be able to walk out.
 		DamageSystem.apply_damage(global_position, DamageSystem.DamageType.SMALL_EXPLOSION, 0.7)
 		CombatManager.apply_explosion_damage(global_position, 150, 40, 10.0, null)
+		NoiseBus.emit_noise(NoiseBus.NoiseType.EXPLOSION, global_position, 0)
 
 
 func _process_flying(delta: float) -> void:
+	if _doomed and _flat_to(_crash_target) <= DOOMED_BREAK_M:
+		state = State.CRASHING
+		return
 	var flat_target := Vector3(_target.x, 0, _target.z)
 	var flat_pos := Vector3(global_position.x, 0, global_position.z)
 	var to_target := flat_target - flat_pos

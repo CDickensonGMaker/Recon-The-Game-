@@ -116,148 +116,29 @@ func _sample(label: String) -> void:
 		if civ == null or not is_instance_valid(civ) or not civ.is_inside_tree():
 			continue
 		bodies.append(civ)
-		var why: String = ""
-		if civ.state != CivilianS.CivState.WANDER:
-			why = "state %d" % civ.state
-		elif civ.puppet:
-			why = "puppet"
-		elif civ.board_target != Vector3.ZERO:
-			why = "boarding"
-		elif not civ.is_physics_processing():
-			why = "no physics"
-		elif civ.lod_tier == CivilianS.LOD_FAR:
-			why = "far"
-		if why != "":
+		var c: Dictionary = classify(civ, space)
+		if String(c.skip) != "":
 			skipped += 1
 			print("  %-28s %-12s %-14s (skipped: %s) at (%.1f, %.1f, %.1f)" % [civ.name,
-				civ.occupation, civ.role, why, civ.global_position.x, civ.global_position.y,
-				civ.global_position.z])
+				civ.occupation, civ.role, String(c.skip), civ.global_position.x,
+				civ.global_position.y, civ.global_position.z])
 			continue
-		var sched: StringName = civ.scheduled_action()
-		var d_post: float = _xz(civ.global_position, civ.working_point_pos)
-		var d_home: float = _xz(civ.global_position, civ.home)
-		var d_tgt: float = _xz(civ.global_position, civ._wander_target)
-		var speed: float = Vector2(civ.velocity.x, civ.velocity.z).length()
-		var clip: String = civ.actor.current_action if civ.actor != null else "-"
-		var bound: bool = _post_bound(civ, sched)
-		var flag: String = ""
-		# The resolver sends him to the post's nearest MESH point, not the raw marker. A
-		# marker off the mesh by more than the tolerance is content to fix, not a man in
-		# the wrong place - named, counted apart, not failed.
-		var post_nav: Vector3 = Vector3.ZERO
-		if bound and civ.working_point_pos != Vector3.ZERO:
-			post_nav = civ._router.nearest_mesh_point(civ.working_point_pos)
-			var d_nav: float = _xz(civ.global_position, post_nav)
-			if d_nav <= ARRIVED_M:
-				arrived_here += 1
-			elif d_nav > WRONG_PLACE_M:
-				away_here += 1
-		if bound and civ.working_point_pos != Vector3.ZERO and d_post > WRONG_PLACE_M:
-			var aiming: bool = _xz(civ._wander_target, post_nav) <= 1.0
-			if aiming and _xz(civ.global_position, post_nav) <= WRONG_PLACE_M:
-				flag = "post off-mesh by %.1fm" % _xz(post_nav, civ.working_point_pos)
-				_offmesh += 1
-			elif not aiming:
-				flag = "WRONG-TARGET"
-				wrong_here += 1
-			elif speed > WALKING_MPS:
-				flag = "walking"
-				walking += 1
-			else:
-				# Off the mesh (a quarters spot inside a carved footprint), off the floor, or no
-				# route at all: the three ways a man aimed at his post stands still. The route is
-				# asked of the map directly, from where he stands to where the resolver sent him -
-				# under two points is the server's own "no path".
-				var map: RID = civ.get_world_3d().navigation_map
-				var mesh_pt: Vector3 = NavigationServer3D.map_get_closest_point(map,
-					civ.global_position)
-				var route: int = NavigationServer3D.map_get_path(map, civ.global_position,
-					post_nav, true).size()
-				# A map route with a man who does not walk it is either the agent calling itself
-				# finished, or the body sliding against something the mesh never carved.
-				var agent: NavigationAgent3D = civ._router.agent
-				var fin: String = "no agent" if agent == null else (
-					"agent FINISHED %.1fm short" % _xz(civ.global_position, agent.target_position)
-					if agent.is_navigation_finished() else "agent pathing %d pts"
-					% agent.get_current_navigation_path().size())
-				# The floor is a slide contact every frame; what stops him is the steepest contact.
-				# Reported by angle from up, against the body's own climb limit, so a 50-degree
-				# sandbag skirt (floor to a flat-normal test, wall to the physics) is named.
-				var wall: String = "no contact"
-				var steepest: float = -1.0
-				var limit: float = rad_to_deg(civ.floor_max_angle)
-				for ci in range(civ.get_slide_collision_count()):
-					var hit: KinematicCollision3D = civ.get_slide_collision(ci)
-					if hit == null:
-						continue
-					var deg: float = rad_to_deg(hit.get_angle())
-					if deg > steepest:
-						steepest = deg
-						var col: Object = hit.get_collider()
-						wall = "%s '%s' at %.0f deg (limit %.0f)" % [
-							"BLOCKED by" if deg > limit else "on",
-							(col as Node).name if col is Node else "?", deg, limit]
-				# What the mover is actually handed: the router's step for this man toward his own
-				# target (the same call _step_toward makes), the speed the tree gave him, and
-				# whether the target sits inside his baked box (outside it the router steers direct).
-				var step: Vector3 = civ._router.step(civ.global_position, civ._wander_target)
-				var inbox: bool = civ._router.box >= 0 \
-					and NavBaker.box_contains(civ._router.box, civ._wander_target)
-				# The agent advances past a path point only when the man is within
-				# path_desired_distance of it in THREE dimensions; a mesh that sits under or over
-				# his feet keeps him on the first point forever while his XZ step reads as arrived.
-				var nxt: String = "-"
-				if agent != null:
-					var np: Vector3 = agent.get_next_path_position()
-					nxt = "next xz %.2fm dy %+.2fm" % [_xz(civ.global_position, np),
-						np.y - civ.global_position.y]
-				# A body that slides to zero on a flat floor with nothing in front of it is INSIDE
-				# something: ask the space what overlaps his capsule, excluding himself.
-				var inside: String = "inside nothing"
-				var col_node: CollisionShape3D = civ.get_node_or_null("CollisionShape3D") as CollisionShape3D
-				if col_node != null and col_node.shape != null:
-					var q := PhysicsShapeQueryParameters3D.new()
-					q.shape = col_node.shape
-					q.transform = col_node.global_transform
-					q.collision_mask = 1
-					q.exclude = [civ.get_rid()]
-					var hits: Array[Dictionary] = space.intersect_shape(q, 6)
-					if not hits.is_empty():
-						var names: PackedStringArray = []
-						for hd in hits:
-							var o: Object = hd.get("collider")
-							names.append((o as Node).name if o is Node else "?")
-						inside = "inside %s" % ", ".join(names)
-				# The body's own answer to "what stops a 10 cm step toward the target?"
-				var probe: String = "10cm step free"
-				var ahead := Vector3(step.x, 0.0, step.z)
-				if ahead.length() > 0.001:
-					var kc := KinematicCollision3D.new()
-					if civ.test_move(civ.global_transform, ahead.normalized() * 0.1, kc):
-						var c: Object = kc.get_collider()
-						# The blocker's top over his feet decides whether the bake called it a
-						# step (agent_max_climb) while the body calls it a wall.
-						var top: float = -99.0
-						if c is CollisionObject3D:
-							for ch in (c as Node).get_children():
-								var cs := ch as CollisionShape3D
-								if cs != null and cs.shape != null:
-									var bb: AABB = cs.global_transform * cs.shape.get_debug_mesh().get_aabb()
-									top = maxf(top, bb.end.y)
-						probe = "10cm step HITS '%s' normal.y %.2f contact %+.2fm top %+.2fm" % [
-							(c as Node).name if c is Node else "?", kc.get_normal().y,
-							kc.get_position().y - civ.global_position.y,
-							top - civ.global_position.y]
-				flag = "STUCK (off-mesh %.2fm dy %+.2fm, %s, %s, %s, %s, step %.2fm, speed %.2f, inbox %s, %s, %s, %s)" % [
-					_xz(civ.global_position, mesh_pt), mesh_pt.y - civ.global_position.y,
-					"on floor" if civ.is_on_floor() else "OFF FLOOR y=%.2f" % civ.global_position.y,
-					"NO ROUTE" if route < 2 else "route %d pts" % route, fin, wall,
-					Vector2(step.x, step.z).length(), float(civ._bt_bb.get("speed", -1.0)),
-					str(inbox), nxt, inside, probe]
-				stuck_here += 1
+		if bool(c.arrived):
+			arrived_here += 1
+		if bool(c.away):
+			away_here += 1
+		if bool(c.offmesh):
+			_offmesh += 1
+		if bool(c.wrong):
+			wrong_here += 1
+		if bool(c.walking):
+			walking += 1
+		if bool(c.stuck):
+			stuck_here += 1
 		print("  %-28s %-12s %-14s %-10s->%-10s post %5.1fm home %5.1fm tgt %5.1fm tier %d box %2d v %.2f %-22s %s" % [
-			civ.name, civ.occupation, civ.role, String(sched), String(civ.active_action),
-			d_post, d_home, d_tgt, civ.lod_tier, civ._router.box, speed, clip, flag])
+			civ.name, civ.occupation, civ.role, String(c.sched), String(civ.active_action),
+			float(c.d_post), float(c.d_home), float(c.d_tgt), civ.lod_tier, civ._router.box,
+			float(c.speed), String(c.clip), String(c.flag)])
 	for n in AgentRegistry.allies:
 		var ally: Node3D = n as Node3D
 		if ally == null or not is_instance_valid(ally) or not ally.is_inside_tree():
@@ -290,7 +171,161 @@ func _sample(label: String) -> void:
 		arrived_here, away_here])
 
 
-func _post_bound(civ: Civilian, action: StringName) -> bool:
+## THE ONE CLASSIFIER (council 2026-09-14): the census and the observatory's pane both call
+## this, so they cannot disagree on what STUCK means. `skip` names why a man is not measured
+## (state / puppet / boarding / no physics / far); `flag` is the census's own vocabulary:
+## "" (in place) · "walking" · "WRONG-TARGET" · "post off-mesh by Nm" · "STUCK (...)".
+static func classify(civ: Civilian, space: PhysicsDirectSpaceState3D) -> Dictionary:
+	var why: String = ""
+	if civ.state != CivilianS.CivState.WANDER:
+		why = "state %d" % civ.state
+	elif civ.puppet:
+		why = "puppet"
+	elif civ.board_target != Vector3.ZERO:
+		why = "boarding"
+	elif not civ.is_physics_processing():
+		why = "no physics"
+	elif civ.lod_tier == CivilianS.LOD_FAR:
+		why = "far"
+	var out: Dictionary = {"skip": why, "flag": "", "sched": &"", "bound": false,
+		"arrived": false, "away": false, "offmesh": false, "wrong": false, "walking": false,
+		"stuck": false, "d_post": 0.0, "d_home": 0.0, "d_tgt": 0.0, "speed": 0.0, "clip": "-"}
+	if why != "":
+		return out
+	var sched: StringName = civ.scheduled_action()
+	var d_post: float = _xz(civ.global_position, civ.working_point_pos)
+	var d_home: float = _xz(civ.global_position, civ.home)
+	var d_tgt: float = _xz(civ.global_position, civ._wander_target)
+	var speed: float = Vector2(civ.velocity.x, civ.velocity.z).length()
+	var clip: String = civ.actor.current_action if civ.actor != null else "-"
+	var bound: bool = post_bound(civ, sched)
+	var flag: String = ""
+	# The resolver sends him to the post's nearest MESH point, not the raw marker. A
+	# marker off the mesh by more than the tolerance is content to fix, not a man in
+	# the wrong place - named, counted apart, not failed.
+	var post_nav: Vector3 = Vector3.ZERO
+	if bound and civ.working_point_pos != Vector3.ZERO:
+		post_nav = civ._router.nearest_mesh_point(civ.working_point_pos)
+		var d_nav: float = _xz(civ.global_position, post_nav)
+		if d_nav <= ARRIVED_M:
+			out.arrived = true
+		elif d_nav > WRONG_PLACE_M:
+			out.away = true
+	if bound and civ.working_point_pos != Vector3.ZERO and d_post > WRONG_PLACE_M:
+		var aiming: bool = _xz(civ._wander_target, post_nav) <= 1.0
+		if aiming and _xz(civ.global_position, post_nav) <= WRONG_PLACE_M:
+			flag = "post off-mesh by %.1fm" % _xz(post_nav, civ.working_point_pos)
+			out.offmesh = true
+		elif not aiming:
+			flag = "WRONG-TARGET"
+			out.wrong = true
+		elif speed > WALKING_MPS:
+			flag = "walking"
+			out.walking = true
+		else:
+			# Off the mesh (a quarters spot inside a carved footprint), off the floor, or no
+			# route at all: the three ways a man aimed at his post stands still. The route is
+			# asked of the map directly, from where he stands to where the resolver sent him -
+			# under two points is the server's own "no path".
+			var map: RID = civ.get_world_3d().navigation_map
+			var mesh_pt: Vector3 = NavigationServer3D.map_get_closest_point(map,
+				civ.global_position)
+			var route: int = NavigationServer3D.map_get_path(map, civ.global_position,
+				post_nav, true).size()
+			# A map route with a man who does not walk it is either the agent calling itself
+			# finished, or the body sliding against something the mesh never carved.
+			var agent: NavigationAgent3D = civ._router.agent
+			var fin: String = "no agent" if agent == null else (
+				"agent FINISHED %.1fm short" % _xz(civ.global_position, agent.target_position)
+				if agent.is_navigation_finished() else "agent pathing %d pts"
+				% agent.get_current_navigation_path().size())
+			# The floor is a slide contact every frame; what stops him is the steepest contact.
+			# Reported by angle from up, against the body's own climb limit, so a 50-degree
+			# sandbag skirt (floor to a flat-normal test, wall to the physics) is named.
+			var wall: String = "no contact"
+			var steepest: float = -1.0
+			var limit: float = rad_to_deg(civ.floor_max_angle)
+			for ci in range(civ.get_slide_collision_count()):
+				var hit: KinematicCollision3D = civ.get_slide_collision(ci)
+				if hit == null:
+					continue
+				var deg: float = rad_to_deg(hit.get_angle())
+				if deg > steepest:
+					steepest = deg
+					var col: Object = hit.get_collider()
+					wall = "%s '%s' at %.0f deg (limit %.0f)" % [
+						"BLOCKED by" if deg > limit else "on",
+						(col as Node).name if col is Node else "?", deg, limit]
+			# What the mover is actually handed: the router's step for this man toward his own
+			# target (the same call _step_toward makes), the speed the tree gave him, and
+			# whether the target sits inside his baked box (outside it the router steers direct).
+			var step: Vector3 = civ._router.step(civ.global_position, civ._wander_target)
+			var inbox: bool = civ._router.box >= 0 \
+				and NavBaker.box_contains(civ._router.box, civ._wander_target)
+			# The agent advances past a path point only when the man is within
+			# path_desired_distance of it in THREE dimensions; a mesh that sits under or over
+			# his feet keeps him on the first point forever while his XZ step reads as arrived.
+			var nxt: String = "-"
+			if agent != null:
+				var np: Vector3 = agent.get_next_path_position()
+				nxt = "next xz %.2fm dy %+.2fm" % [_xz(civ.global_position, np),
+					np.y - civ.global_position.y]
+			# A body that slides to zero on a flat floor with nothing in front of it is INSIDE
+			# something: ask the space what overlaps his capsule, excluding himself.
+			var inside: String = "inside nothing"
+			var col_node: CollisionShape3D = civ.get_node_or_null("CollisionShape3D") as CollisionShape3D
+			if col_node != null and col_node.shape != null:
+				var q := PhysicsShapeQueryParameters3D.new()
+				q.shape = col_node.shape
+				q.transform = col_node.global_transform
+				q.collision_mask = 1
+				q.exclude = [civ.get_rid()]
+				var hits: Array[Dictionary] = space.intersect_shape(q, 6)
+				if not hits.is_empty():
+					var names: PackedStringArray = []
+					for hd in hits:
+						var o: Object = hd.get("collider")
+						names.append((o as Node).name if o is Node else "?")
+					inside = "inside %s" % ", ".join(names)
+			# The body's own answer to "what stops a 10 cm step toward the target?"
+			var probe: String = "10cm step free"
+			var ahead := Vector3(step.x, 0.0, step.z)
+			if ahead.length() > 0.001:
+				var kc := KinematicCollision3D.new()
+				if civ.test_move(civ.global_transform, ahead.normalized() * 0.1, kc):
+					var c: Object = kc.get_collider()
+					# The blocker's top over his feet decides whether the bake called it a
+					# step (agent_max_climb) while the body calls it a wall.
+					var top: float = -99.0
+					if c is CollisionObject3D:
+						for ch in (c as Node).get_children():
+							var cs := ch as CollisionShape3D
+							if cs != null and cs.shape != null:
+								var bb: AABB = cs.global_transform * cs.shape.get_debug_mesh().get_aabb()
+								top = maxf(top, bb.end.y)
+					probe = "10cm step HITS '%s' normal.y %.2f contact %+.2fm top %+.2fm" % [
+						(c as Node).name if c is Node else "?", kc.get_normal().y,
+						kc.get_position().y - civ.global_position.y,
+						top - civ.global_position.y]
+			flag = "STUCK (off-mesh %.2fm dy %+.2fm, %s, %s, %s, %s, step %.2fm, speed %.2f, inbox %s, %s, %s, %s)" % [
+				_xz(civ.global_position, mesh_pt), mesh_pt.y - civ.global_position.y,
+				"on floor" if civ.is_on_floor() else "OFF FLOOR y=%.2f" % civ.global_position.y,
+				"NO ROUTE" if route < 2 else "route %d pts" % route, fin, wall,
+				Vector2(step.x, step.z).length(), float(civ._bt_bb.get("speed", -1.0)),
+				str(inbox), nxt, inside, probe]
+			out.stuck = true
+	out.flag = flag
+	out.sched = sched
+	out.bound = bound
+	out.d_post = d_post
+	out.d_home = d_home
+	out.d_tgt = d_tgt
+	out.speed = speed
+	out.clip = clip
+	return out
+
+
+static func post_bound(civ: Civilian, action: StringName) -> bool:
 	if POST_ACTIONS.has(action):
 		return true
 	if civ.is_garrison and OFF_DUTY_AT_POST.has(action) \

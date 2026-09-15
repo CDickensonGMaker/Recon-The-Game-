@@ -181,6 +181,14 @@ V-align eyes check · re-export ak/m14 through the driver for uniformity · M14 
 
 ## 11. Changelog
 
+- **2026-09-14** — the demo is 45 minutes (DAY_RATIO 27); the slick shoot-down + led survivors, the
+  HQ taskings (`CampaignState.taskings`), the dealer, the beats on `ScriptedSequence`, the observatory
+  (F9, debug builds), the audibility mix and the third simulation ring (`terrain_watchdog.gd`, sliced,
+  invariant tested) shipped; `--demo-map=N` exists, 1024 is NOT the default (its assault stalls). §8's
+  "Forward+" line and §2's renderer decree are STALE: his 2026-09-11 ruling lifted the Forward+
+  decree and Mobile shipped (memory `recon-mobile-renderer-shipped-2026-09-11`). Council:
+  `production/war_room/2026-09-14_rpg_dealer_hq_map/`.
+
 - **v0.3.2 (2026-07-10)** — ADR-016 decided and shipped.
   - The Summoner decreed the damage grammar directly: pure flat base × zone, dice dropped entirely.
     Migration executed same-day (schema, 16 resources, 6 call sites, rosters, CLAUDE.md law) with

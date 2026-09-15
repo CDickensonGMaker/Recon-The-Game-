@@ -234,9 +234,9 @@ func _process(delta: float) -> void:
 					int(ws.killed), int(ws.peak), float(ws.elapsed),
 					"ON" if SiegeDirector.waves_enabled() else "OFF"])
 			print("[WAVE]   %s" % (fd.get("siege") as SiegeDirector).survivors_status())
-	print("[AILOD] near %d (window peak %d, mean %.1f) of %d live enemies | hot slots %d/%d | lod %s"
+	print("[AILOD] near %d (window peak %d, mean %.1f) of %d live enemies | asleep %d | hot slots %d/%d | lod %s"
 		% [AILod.promoted_count(), AILod.window_peak, AILod.window_mean(),
-			AgentRegistry.enemies.size(), EnemySquad.hot_count(), EnemySquad.HOT_CAP,
+			AgentRegistry.enemies.size(), AILod.asleep_count(), EnemySquad.hot_count(), EnemySquad.HOT_CAP,
 			"ON" if AILod.is_enabled() else "OFF"])
 	AILod.flush_window()
 	## GPU ms reads 0.0 under the dummy renderer and stays 0.0 if measurement was never

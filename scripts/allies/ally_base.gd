@@ -859,6 +859,24 @@ func _setup_hurtbox() -> void:
 
 ## Meters walked since the last audible footstep (~one stride).
 var _step_accum: float = 0.0
+## Movement as a NoiseBus stimulus, team 0 like the player's own steps: an enemy
+## within 8 m of a walking ally hears him exactly as he hears the player (SUSPICIOUS/
+## ALERT, never COMBAT - the witness rule holds). Throttled per man.
+const STEP_NOISE_INTERVAL_MS: int = 3000
+var _step_noise_ms: int = 0
+
+
+func _emit_step_noise(sprinting: bool) -> void:
+	var now_ms: int = Time.get_ticks_msec()
+	if now_ms - _step_noise_ms < STEP_NOISE_INTERVAL_MS:
+		return
+	_step_noise_ms = now_ms
+	if _low_posture:
+		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP, global_position, 0, 3.0, self)
+	elif sprinting:
+		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP_SPRINT, global_position, 0, -1.0, self)
+	else:
+		NoiseBus.emit_noise(NoiseBus.NoiseType.FOOTSTEP, global_position, 0, -1.0, self)
 
 ## Ledger span for this script's whole physics step - the 2026-09-11 audit read 100+ of 150
 ## physics steps over 20 ms mid-assault with the named spans summing to ~3 ms of them.
@@ -973,7 +991,10 @@ func _physics_step_ally_base(delta: float) -> void:
 		_step_accum += Vector2(velocity.x, velocity.z).length() * capped_delta
 		if _step_accum >= 0.85:
 			_step_accum = 0.0
-			AudioManager.play_step_3d(global_position, _low_posture)
+			var flat_speed: float = Vector2(velocity.x, velocity.z).length()
+			var sprinting: bool = flat_speed > move_speed * 1.15
+			AudioManager.play_step_3d(global_position, _low_posture, sprinting)
+			_emit_step_noise(sprinting)
 	CombatManager.ai_usec_move += Time.get_ticks_usec() - t_move
 	CombatManager.ai_usec_anim += (t_move - t_sync) - usec_think
 

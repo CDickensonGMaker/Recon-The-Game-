@@ -839,6 +839,18 @@ static func muzzle_flash(parent: Node, pos: Vector3, viewmodel: bool = false,
 	## SpawnLedger must not count a flash the player never saw.
 	if root == null:
 		return
+	# A pooled root that lost its quads is a corpse, not a flash: name it once, rebuild it.
+	if root.get_child_count() < FLASH_CHILDREN:
+		if not _flash_hollow_named:
+			_flash_hollow_named = true
+			push_warning("[GunFX] a pooled MuzzleFlash root had %d children (parent %s, in tree %s) - rebuilt"
+				% [root.get_child_count(), str(root.get_parent().name) if root.get_parent() != null else "none",
+					str(root.is_inside_tree())])
+		_flash_pool.erase(root)
+		root.queue_free()
+		root = _flash_build(parent)
+		if root == null:
+			return
 	SpawnLedger.note("muzzle_flash")
 	_active_flashes += 1
 	root.global_position = pos
@@ -847,6 +859,18 @@ static func muzzle_flash(parent: Node, pos: Vector3, viewmodel: bool = false,
 	if not viewmodel:
 		size_jitter *= MUZZLE_OBSERVED_SCALE * bench_muzzle_mult
 	var core := root.get_child(FLASH_CORE) as MeshInstance3D
+	if core == null:
+		if not _flash_hollow_named:
+			_flash_hollow_named = true
+			var kinds: PackedStringArray = []
+			for c in root.get_children():
+				kinds.append("%s:%s" % [c.name, c.get_class()])
+			push_warning("[GunFX] MuzzleFlash root %s (parent %s) child 0 is not a mesh: [%s]"
+				% [root.name, str(root.get_parent().name) if root.get_parent() != null else "none", ", ".join(kinds)])
+		_flash_pool.erase(root)
+		root.queue_free()
+		root = _flash_build(parent)
+		core = root.get_child(FLASH_CORE) as MeshInstance3D
 	var core_mesh := core.mesh as QuadMesh
 	core_mesh.size = Vector2(0.5, 0.5) * size_jitter
 	var core_pick: int = randi() % 2 + 4
@@ -889,6 +913,8 @@ static func _roll_basis(degrees: float) -> Basis:
 ## tests/test_fake_lights.gd reads host.get_child(0) and recurses, so the shape and the
 ## order are a contract here, not an implementation detail.
 const FLASH_CORE: int = 0
+const FLASH_CHILDREN: int = 3
+static var _flash_hollow_named: bool = false
 const FLASH_SPIKES: int = 1
 const FLASH_TIMER: int = 2
 

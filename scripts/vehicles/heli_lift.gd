@@ -515,6 +515,37 @@ const EXTRACT_REACH_M: float = 35.0
 
 ## Doors shut as it lifts, and anyone still aboard leaves the garrison's books - he is gone from
 ## the compound whether or not the count ever sees him again.
+## The men aboard, for the one caller that takes them off a ship that never lands
+## (PilotRecovery, the shoot-down). Aircrew first, then the stick. A crashed lift delivers
+## nothing and extracts nobody: the wreck owns its men from here.
+func aboard() -> Array[Civilian]:
+	var out: Array[Civilian] = []
+	for c in _crew:
+		if c != null and is_instance_valid(c):
+			out.append(c)
+	for m in _pax:
+		if m != null and is_instance_valid(m):
+			out.append(m)
+	return out
+
+
+func crew_count() -> int:
+	return _crew.size()
+
+
+## THE lift's seat system - huey.tscn ships a "Seats" node of its own, so the one this lift
+## built and seated its men in is not the one Helicopter.seats() returns.
+func cabin() -> SeatSystem:
+	return seats
+
+
+func mark_crashed() -> void:
+	_delivered = true
+	_crew.clear()
+	_pax.clear()
+	_pax_allies.clear()
+
+
 func _on_took_off(_h: Helicopter) -> void:
 	_door_want_open = false
 	if seats == null:

@@ -718,7 +718,7 @@ static func _road_blockers(world: GameWorld) -> Array:
 	return out
 
 
-## DEMO GAME (War Room 2026-07-29): the authored 512m-slice plan. Same dict
+## DEMO GAME (War Room 2026-07-29): the authored demo-slice plan (GameFlow.demo_map_size). Same dict
 ## contract as plan_patrol_world - build_patrol_world stamps it unchanged - but
 ## sites are placed by BEARING from the centered firebase because the patrol
 ## planner's 240-560m bands cannot fit a small map. Lives HERE because only
@@ -767,17 +767,24 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	var out_v: Vector3 = (gm.gate_out as Vector3).normalized()
 	var v_dir: Vector3 = out_v.rotated(Vector3.UP, 2.35)
 	var t_dir: Vector3 = out_v.rotated(Vector3.UP, -2.35)
+	# ROOM (War Room 2026-09-14): the plan grows with the slice so the village and the camp
+	# are out of each other's hearing (GUNSHOT 150 m). `g` is 0 on the 512 slice - every radius
+	# below is then its 2026-09-14 value to the metre, the A/B contract - and 1 at 1024, where
+	# the village stands ~300 m out, the camp ~330 m, the rest 1.6x. The spawn cells off the
+	# gate (150-300 m) do not grow: the walk out is the same walk.
+	var g: float = clampf((world.map_size - 512.0) / 512.0, 0.0, 1.0)
+	var spread: float = lerpf(1.0, 1.6, g)
 	var village := _passable_near(world, rng,
-		fsb_center + v_dir * 185.0, 15.0, 60.0, 90,
+		fsb_center + v_dir * lerpf(185.0, 300.0, g), 15.0, 60.0, 90,
 		SitePlanner.FSB_SITE_CLEARANCE)
 	if village == Vector3.ZERO:
-		village = fsb_center + v_dir * 165.0
+		village = fsb_center + v_dir * lerpf(165.0, 270.0, g)
 		village.y = world.terrain_manager.get_height_at(village)
 	p.sites.append({"kind": "village", "center": village})
 	var demo_villages: Array[Vector3] = [village]
 	p["village_centers"] = demo_villages
 	var temple := _passable_near(world, rng,
-		fsb_center + t_dir * 170.0, 15.0, 60.0, 90,
+		fsb_center + t_dir * 170.0 * spread, 15.0, 60.0, 90,
 		SitePlanner.FSB_SITE_CLEARANCE)
 	if temple != Vector3.ZERO:
 		p.sites.append({"kind": "temple", "center": temple})
@@ -793,8 +800,8 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	#
 	# Bearings walk the compass away from the two authored flanks. The gate arc is deliberately
 	# skipped: the walk out already carries the first-sign craters, and a ruin on that bearing
-	# would be tripped over rather than discovered. Radii stay inside 230m - the slice is 512m,
-	# so the firebase sits 256m from every edge and anything further has no passable ground left.
+	# would be tripped over rather than discovered. Radii stay inside 230m on the 512 slice - the
+	# firebase sits 256m from every edge and anything further has no passable ground left.
 	## Radii are pulled IN from the first pass (205/150/185): on the shipped DEMO_SEED those
 	## put two of the three outside anything passable and only one ruin landed. The village
 	## and the camp both carry a second, shorter attempt for exactly this reason - a bearing
@@ -805,13 +812,13 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	for i in range(ruin_bearings.size()):
 		var r_dir: Vector3 = out_v.rotated(Vector3.UP, ruin_bearings[i])
 		var spot: Vector3 = _passable_near(world, rng,
-			fsb_center + r_dir * ruin_radii[i], 18.0, 95.0, 120,
+			fsb_center + r_dir * ruin_radii[i] * spread, 18.0, 95.0, 120,
 			SitePlanner.FSB_SITE_CLEARANCE)
 		if spot == Vector3.ZERO:
 			# Second attempt, closer in and wider. A jungle ruin 40m nearer the wire is still
 			# a thing found off the path; no ruin at all is the failure that matters.
 			spot = _passable_near(world, rng,
-				fsb_center + r_dir * (ruin_radii[i] - 40.0), 18.0, 110.0, 120,
+				fsb_center + r_dir * (ruin_radii[i] * spread - 40.0), 18.0, 110.0, 120,
 				SitePlanner.FSB_SITE_CLEARANCE)
 		if spot == Vector3.ZERO:
 			continue
@@ -841,7 +848,7 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	p.enemy_groups.append({"pos": village, "count": rng.randi_range(3, 4),
 		"tag": "village_defenders_0", "lazy": false, "spread": 18.0})
 	var treeline := _passable_near(world, rng,
-		fsb_center + Vector3(0.2, 0.0, 1.0).normalized() * 190.0, 20.0, 80.0, 60,
+		fsb_center + Vector3(0.2, 0.0, 1.0).normalized() * 190.0 * spread, 20.0, 80.0, 60,
 		SitePlanner.FSB_SITE_CLEARANCE)
 	if treeline != Vector3.ZERO:
 		p.enemy_groups.append({"pos": treeline, "count": rng.randi_range(3, 5),
@@ -852,11 +859,11 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	# the temple at 170m on this bearing becomes a landmark on the way to it.
 	var camps: Array[Vector3] = []
 	var camp := _passable_near(world, rng,
-		fsb_center + t_dir * 300.0, 20.0, 70.0, 90,
+		fsb_center + t_dir * lerpf(300.0, 330.0, g), 20.0, 70.0, 90,
 		SitePlanner.FSB_SITE_CLEARANCE)
 	if camp == Vector3.ZERO:
 		camp = _passable_near(world, rng,
-			fsb_center + t_dir * 265.0, 20.0, 110.0, 90,
+			fsb_center + t_dir * lerpf(265.0, 300.0, g), 20.0, 110.0, 90,
 			SitePlanner.FSB_SITE_CLEARANCE)
 	if camp != Vector3.ZERO:
 		p.sites.append({"kind": "vc_camp", "center": camp})
@@ -878,18 +885,18 @@ static func plan_demo_world(world: GameWorld, op_seed: int) -> Dictionary:
 	# read at range as distant tracer streams when aircraft are up. Positions are
 	# seed-fixed like every site; the FIRING is ambient-RNG inside ZpuGun. Bearings skip
 	# the gate arc (0), the camp flank (-2.35) and the village flank (2.35); radii sit
-	# near the 230m passable limit named at the ruin pass above, so they land at the
-	# edges of the slice, never beside the player's ground.
+	# near the 230m passable limit named at the ruin pass above (times `spread`), so they
+	# land at the edges of the slice, never beside the player's ground.
 	var aa_pts: Array[Vector3] = []
 	var aa_bearings: Array[float] = [0.9, 2.9, -1.35]
 	var aa_radii: Array[float] = [205.0, 195.0, 210.0]
 	for i in range(aa_bearings.size()):
 		var a_dir: Vector3 = out_v.rotated(Vector3.UP, aa_bearings[i])
 		var apos: Vector3 = _passable_near(world, rng,
-			fsb_center + a_dir * aa_radii[i], 10.0, 60.0, 90)
+			fsb_center + a_dir * aa_radii[i] * spread, 10.0, 60.0, 90)
 		if apos == Vector3.ZERO:
 			apos = _passable_near(world, rng,
-				fsb_center + a_dir * (aa_radii[i] - 35.0), 10.0, 80.0, 90)
+				fsb_center + a_dir * (aa_radii[i] * spread - 35.0), 10.0, 80.0, 90)
 		if apos != Vector3.ZERO:
 			aa_pts.append(apos)
 	p["ambient_aa"] = aa_pts

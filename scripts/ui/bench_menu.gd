@@ -6,6 +6,8 @@ extends CanvasLayer
 signal weapon_chosen(tres_path: String)
 signal clean_requested
 signal close_requested
+## build_rows only: the row's id, never a path.
+signal row_chosen(id: String)
 
 var _rows: Array[Button] = []
 var _clean_button: Button
@@ -71,6 +73,46 @@ func build(rack: Array[String], current_id: String, condition: float) -> void:
 
 	_list.add_child(HSeparator.new())
 
+	var close_button := Button.new()
+	close_button.text = "CLOSE  [F]"
+	close_button.pressed.connect(func() -> void: close_requested.emit())
+	_list.add_child(close_button)
+
+
+## The dealer's shape of the same menu: a title, rows by id, no rack and no clean button.
+## Rows are {id: String, label: String, enabled: bool}; a disabled row is a thing he will
+## not sell yet, drawn so the player reads the price list, not a tease.
+func build_rows(title_text: String, rows: Array[Dictionary]) -> void:
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.0, 0.0, 0.55)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(420, 0)
+	center.add_child(panel)
+	_list = VBoxContainer.new()
+	_list.add_theme_constant_override("separation", 4)
+	panel.add_child(_list)
+	var title := Label.new()
+	title.text = title_text
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", Color(0.95, 0.78, 0.42))
+	_list.add_child(title)
+	_list.add_child(HSeparator.new())
+	for r: Dictionary in rows:
+		var row := Button.new()
+		row.text = str(r.get("label", ""))
+		row.disabled = not bool(r.get("enabled", true))
+		var id: String = str(r.get("id", ""))
+		row.pressed.connect(func() -> void: row_chosen.emit(id))
+		_rows.append(row)
+		_list.add_child(row)
+	_list.add_child(HSeparator.new())
 	var close_button := Button.new()
 	close_button.text = "CLOSE  [F]"
 	close_button.pressed.connect(func() -> void: close_requested.emit())
