@@ -1075,6 +1075,31 @@ static func _stamp_stream(world: GameWorld, planner: SitePlanner, stream: Dictio
 		var axis: Vector3 = stream.axis
 		planner.place_prop("res://assets/world/vegetation/fallen_log_a.glb", f1,
 			rad_to_deg(atan2(axis.x, axis.z)))
+	if fords.has("F3"):
+		# The monkey bridge spans F3 along the polyline's normal there (its local +X is the
+		# span; a Y yaw sends +X to (cos, 0, -sin)). Seated on the carved floor by
+		# place_structure; the GLB's deck tops sit 1.20 m up, the floor-to-grade cut at a ford.
+		var f3: Vector3 = fords["F3"]
+		var f3xz := Vector2(f3.x, f3.z)
+		var k: int = 0
+		for i in points.size():
+			if points[i].distance_squared_to(f3xz) < points[k].distance_squared_to(f3xz):
+				k = i
+		var tangent: Vector2 = (points[mini(k + 1, points.size() - 1)] - points[maxi(k - 1, 0)]).normalized()
+		var normal := Vector3(-tangent.y, 0.0, tangent.x)
+		if normal.dot(stream.axis) < 0.0:
+			normal = -normal
+		var bridge: Node3D = place_event_prop(world, "res://assets/world/props/monkey_bridge.glb", f3,
+			rad_to_deg(atan2(-normal.z, normal.x)))
+		if bridge != null:
+			# The ground crossing the line slopes (1.25 m across F3 on the 9/15 seed), so the
+			# deck follows the two banks: origin dropped to their mean less the 1.20 m deck
+			# rise built into the GLB, then pitched about the local Z so each end lands on
+			# its own bank. A flat site reduces to the plain seat.
+			var g_a: float = tm.get_height_at(f3 - normal * 8.0)
+			var g_b: float = tm.get_height_at(f3 + normal * 8.0)
+			bridge.global_position.y = (g_a + g_b) * 0.5 - 1.20
+			bridge.rotate_object_local(Vector3(0.0, 0.0, 1.0), atan2(g_b - g_a, 15.0))
 
 
 static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dictionary) -> Dictionary:
@@ -1091,6 +1116,8 @@ static func build_patrol_world(world: GameWorld, director: FieldDirector, p: Dic
 	_build_firebase_garrison(world, director, fsb.center as Vector3, rng)
 	if p.has("stream"):
 		_stamp_stream(world, planner, p.stream)
+		for f: Vector3 in ((p.stream as Dictionary).fords as Dictionary).values():
+			built_sites.append({"kind": NavBaker.FORD_KIND, "center": f, "radius": 20.0})
 	for site in p.sites:
 		match str(site.kind):
 			"village":
@@ -1316,7 +1343,10 @@ static func _man_site_plan(world: GameWorld, director: FieldDirector, posts: Arr
 			var wp: Vector3 = station
 			wp.y = world.floor_y(wp)
 			man.working_point_pos = wp
-			man.add_to_group("firebase_garrison")
+			# The kit base is somebody else's firebase: its men are not the main wire's
+			# garrison, or a stand-to at fsb_main promotes nineteen men 450 m away and the
+			# lift's ledger reads them as replacements landed.
+			man.add_to_group("kit_garrison")
 			made += 1
 	print("[PLAN] kit base manned: %d post(s), %d man/men" % [posts.size(), made])
 

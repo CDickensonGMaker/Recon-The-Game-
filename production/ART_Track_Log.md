@@ -1302,3 +1302,13 @@ blotches gone. GLBs re-exported (1.38-1.49 MB, images < 1 MB). Renders: `ww1_LIN
 `ww1_<tag>_{front,threequarter,side,portrait}_tpose.png`, `ww1_FACES_all_seven.png`. **Owed: Caleb's eye - and his
 call on the roster wrap's side-of-head ear smear vs the full-cell projection.** Details `production/blender_notes.md`
 2026-09-13.
+
+## 2026-09-15 · STREAM CROSSING F3: MONKEY BRIDGE (cau khi) SHIPPED
+
+- `assets/world/props/monkey_bridge.glb` - 15.0 m bamboo footway, 312 tris, one `vil_bamboo` 256x256 (63 KB),
+  deck-only `-colonly` hulls; built from `fence_run_01.glb`'s bamboo pole (no generated geometry). Seated over F3 in
+  `_stamp_stream` (pitched to the two bank grades: the site slopes 1.25 m across), `CollisionTable` WOOD (soft cover).
+  Gate: `--stream-probe` PASS run 3 (`_bridge()` checks: hull at mid-span, ends within 0.4 m of grade). Renders
+  `production/renders_firebase/monkey_bridge_{side,threequarter,walk}.png`. **Owed: Caleb's eye; a `bridge_timber`
+  destructible kind if he wants it satchel-able (today it is shoot-through only).** Details `production/blender_notes.md`
+  2026-09-15 (monkey bridge).

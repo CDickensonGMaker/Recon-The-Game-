@@ -50,8 +50,13 @@ const AGENT_MAX_CLIMB: float = 0.4
 ## Boxes with a live navmesh. Static so EnemyBase can ask cheaply, at 6.7 Hz.
 static var _live_boxes: Array[AABB] = []
 
+## A crossing is baked whether or not an enemy anchor stands near it: the ford IS the route
+## between two banks, and a bank with no mesh sends the man direct-steering into the water.
+const FORD_KIND: String = "ford"
+
 var regions_live: int = 0
 var _terrain: TerrainManager = null
+var _grid: GameplayGrid = null
 var _queue: Array[Dictionary] = []
 var _active_mesh: NavigationMesh = null
 var _bake_start_ms: int = 0
@@ -105,6 +110,10 @@ static func _xz_contains(b: AABB, p: Vector3) -> bool:
 func setup(terrain: TerrainManager) -> void:
 	add_to_group(&"nav_baker")
 	_terrain = terrain
+	# The grid owns the water read; a world without one (the lab scenes) bakes every quad.
+	var gw: Node = get_tree().get_first_node_in_group(&"game_world") if get_tree() != null else null
+	if gw != null and "gameplay_grid" in gw:
+		_grid = gw.gameplay_grid as GameplayGrid
 
 
 func _exit_tree() -> void:
@@ -125,17 +134,26 @@ static func should_bake(site: Dictionary, anchors: Array[Vector3]) -> bool:
 
 func queue_sites(sites: Array, anchors: Array[Vector3]) -> void:
 	var boxes: Array[AABB] = []
+	var fords: Array[AABB] = []
+	var fsb_site: Dictionary = {}
 	for s in sites:
 		var site: Dictionary = s
+		var kind: String = str(site.get("kind", ""))
 		# The firebase is baked whether or not an enemy anchor is near it: the squad and the
 		# garrison live inside that wire and must path there on a quiet afternoon too. It is
 		# also kept OUT of the merge below - a merged box would lose its collider root.
-		if str(site.get("kind", "")) == FSB_KIND:
-			_queue_firebase(site)
+		if kind == FSB_KIND:
+			fsb_site = site
+			continue
+		if kind == FORD_KIND:
+			fords.append(_box_for(site.get("center", Vector3.ZERO), float(site.get("radius", 20.0))))
 			continue
 		if not NavBaker.should_bake(site, anchors):
 			continue
 		boxes.append(_box_for(site.get("center", Vector3.ZERO), float(site.get("radius", 20.0))))
+	if not fsb_site.is_empty():
+		_queue_firebase(fsb_site, fords)
+	boxes.append_array(fords)
 	boxes = _merge(boxes)
 	# _merge exists because overlapping, non-coincident regions produce NO edge connections
 	# - but the firebase is deliberately kept OUT of it (a merged box would lose its
@@ -203,16 +221,29 @@ func queue_site_with_colliders(center: Vector3, radius: float, root: Node3D) -> 
 	_queue.append({"box": _box_for(center, radius, radius), "colliders": root})
 
 
-func _queue_firebase(site: Dictionary) -> void:
+## A ford box that overlaps the compound's box is ABSORBED into it, not trimmed out of it.
+## The demo stream runs ~208 m out and the compound's box reaches 185 m, so the near bank
+## is the compound's and a ford box trimmed clear of it would hold the far bank only:
+## regions never connect, and a crossing split between two would be no crossing at all.
+## Grown, the one region holds both banks and the ford, and the squad paths across it.
+## Absorbed boxes are removed from `fords`; the rest bake on their own.
+func _queue_firebase(site: Dictionary, fords: Array[AABB] = []) -> void:
 	var nodes: Array = site.get("nodes", [])
 	var root: Node3D = (nodes[0] as Node3D) if nodes.size() > 0 else null
 	if root == null:
 		push_error("[NAV] firebase site has no root node - falling back to a terrain-only "
 			+ "bake, which paths men straight through the bunkers")
-	_queue.append({
-		"box": _box_for(site.get("center", Vector3.ZERO), FSB_HALF, FSB_HALF),
-		"colliders": root,
-	})
+	var box: AABB = _box_for(site.get("center", Vector3.ZERO), FSB_HALF, FSB_HALF)
+	var grew: bool = true
+	while grew:
+		grew = false
+		for i in range(fords.size()):
+			if NavBaker._xz_overlap(box, fords[i]):
+				box = box.merge(fords[i])
+				fords.remove_at(i)
+				grew = true
+				break
+	_queue.append({"box": box, "colliders": root})
 
 
 func _box_for(center: Vector3, radius: float, cap: float = HALF_MAX) -> AABB:
@@ -423,7 +454,7 @@ func _start_bake(job: Dictionary) -> void:
 	# function used to do.
 	_job = {"job": job, "nav": nav, "source": source, "box": box, "croot": croot,
 		"phase": 0, "iz": 0, "faces": PackedVector3Array(), "stack": [],
-		"shapes": [], "si": 0, "cur": {}, "added": 0, "carved": 0}
+		"shapes": [], "si": 0, "cur": {}, "added": 0, "carved": 0, "wet": 0}
 	_collect_slice()
 
 
@@ -491,9 +522,18 @@ func _terrain_row(box: AABB) -> bool:
 	var faces: PackedVector3Array = _job.faces
 	var az: float = z0 + float(iz) * GRID_STEP
 	var bz: float = az + GRID_STEP
+	var wet: int = int(_job.get("wet", 0))
 	for ix in range(nx):
 		var ax: float = x0 + float(ix) * GRID_STEP
 		var bx: float = ax + GRID_STEP
+		# Deep water is not floor. Judged at the quad's centre, the same sample the grid
+		# takes for its impassable flag; a corner rule would leave a 45-degree ford as a
+		# staircase of corner-touching quads that Recast never joins. Recast erodes
+		# agent_radius back from the hole's edge, so a path stays that far off the bed.
+		if _grid != null and _grid.get_water_depth(Vector3(ax + GRID_STEP * 0.5, 0.0,
+				az + GRID_STEP * 0.5)) > GameplayGrid.WADE_DEPTH_M:
+			wet += 1
+			continue
 		var p00 := Vector3(ax, _terrain.get_height_at(Vector3(ax, 0, az)), az)
 		var p10 := Vector3(bx, _terrain.get_height_at(Vector3(bx, 0, az)), az)
 		var p01 := Vector3(ax, _terrain.get_height_at(Vector3(ax, 0, bz)), bz)
@@ -501,6 +541,7 @@ func _terrain_row(box: AABB) -> bool:
 		faces.append(p00); faces.append(p10); faces.append(p11)
 		faces.append(p00); faces.append(p11); faces.append(p01)
 	_job.faces = faces
+	_job.wet = wet
 	_job.iz = iz + 1
 	return true
 
@@ -727,6 +768,7 @@ func _finish_job() -> void:
 	var box: AABB = _job.box
 	var croot: Node3D = _job.croot
 	var carved: int = int(_job.carved)
+	var wet: int = int(_job.wet)
 	_job = {}
 	for id in _face_cache.keys():
 		if not is_instance_id_valid(int(id)):
@@ -748,12 +790,12 @@ func _finish_job() -> void:
 	_active_box = box
 	_bake_start_ms = Time.get_ticks_msec()
 	NavigationServer3D.bake_from_source_geometry_data_async(
-		nav, source, _on_bake_done.bind(region, nav, box, carved, croot))
+		nav, source, _on_bake_done.bind(region, nav, box, carved, croot, wet))
 
 
 ## Runs on the main thread. The ONLY place navigation_mesh is assigned.
 func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, carved: int,
-		croot: Node3D = null) -> void:
+		croot: Node3D = null, wet: int = 0) -> void:
 	if not is_instance_valid(region):
 		return
 	var polys: int = nav.get_polygon_count()
@@ -766,8 +808,8 @@ func _on_bake_done(region: NavigationRegion3D, nav: NavigationMesh, box: AABB, c
 	# ms is per bake and printed HERE because the queue-empty summary below can
 	# race _process's _active_mesh poll and stay silent - this line is the one
 	# reliable bake-cost instrument (breach re-bakes pay it mid-siege).
-	print("[NavBaker] bake done: box=%s verts=%d polys=%d geom=%s cell=%.3f h=%.3f climb=%.2f ms=%d" % [
-		box.size, nav.get_vertices().size(), polys, geom, nav.cell_size,
+	print("[NavBaker] bake done: box=%s verts=%d polys=%d geom=%s deep_water_quads=%d cell=%.3f h=%.3f climb=%.2f ms=%d" % [
+		box.size, nav.get_vertices().size(), polys, geom, wet, nav.cell_size,
 		nav.cell_height, nav.agent_max_climb, bake_ms])
 	_report_roof_misses(nav)
 	if polys == 0:

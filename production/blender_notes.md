@@ -4062,3 +4062,49 @@ laces, webbing all read; only the sub-pixel fabric weave is gone. Faces did not 
 **Left:** the three 1.3-2.0 MB packed atlases above could be shrunk in the blend the same way so the export-time
 halving becomes a no-op; the surgeon slot-0 sheet with zero faces is a dead material slot; the README's "2019
 objects" is stale (3364 opened). Godot gate (`--headless --import`, census) is the overseer's.
+
+## 2026-09-15 - MONKEY BRIDGE (cau khi) for the demo AO's ford F3: `assets/world/props/monkey_bridge.glb`
+
+Scripts (re-runnable, `_scratch/monkey_bridge/`): `build_monkey_bridge.py` (donor extract -> members -> checks ->
+3 renders -> export), `measure_glb.py` (reimport gate), `inspect_donors.py`. Reference (3 angles, Wikimedia commons,
+`assets/reference/references/reference_images/monkey_bridge/`): bank three-quarter (paired-pole X-legs, the
+through-pole carries a one-side rail), low water-level three-quarter (lashed laps, rail ~1 m over the deck, braces to
+the bank), far side view over a paddy channel (deck lands on grade, low profile, one rail).
+
+**Donor, no generated geometry (his law):** the 6.0 x 0.07 x 0.07 m `vil_bamboo` rail box out of
+`fence_run_01.glb` (the village kit's bamboo pole, `tools/gen_village.py:791 fam_fence_run`). 26 copies moved /
+scaled along the axis / rotated (`member()`): deck 6 bays of a 0.25 x 0.12 bundle on a 1.20 -> 1.50 -> 1.20 arch,
+5 X-legs at 2.5 m (through-pole A foot -Y up to rail height on +Y, pole B foot +Y stopping 0.3 over the deck),
+2 end posts, 6 rail bays, 2 diagonal bank braces. Bays lap 0.15 m at each support (the reference's lashing, and it
+is what took the 8+8 coincident verts to 0).
+
+**Numbers.** 312 visible tris (budget 400), verts 48/96/64 welded, ngons 0, loose 0, doubles 0. Span 15.005 m along
+X, 0.99 m wide, 2.536 m tall, min Z 0.000 (lowest leg corner seated on the origin - the built feet sat 16.5 mm
+under, lifted). One material `vil_bamboo`, 256x256 PNG 63,474 B embedded verbatim, box projection at 1.6 m/tile =
+160 px/m. GLB 97,536 B. Colliders: 6 `monkey_bridge_deck_00N-colonly` hulls, deck only, 0.30 m wide (a man walks it;
+nobody wading beneath is walled). Nodes: `monkey_bridge_{deck,legs,rail}` + the 6 hulls. `shrink_oversized_textures.py`
+dry run: 0. Renders `production/renders_firebase/monkey_bridge_{side,threequarter,walk}.png` (Workbench flat texture,
+render-only floor/water/bank slabs and a 1.70 m datum).
+
+**The contract's 10 m span was measured wrong and overruled.** `carve_channel` (`terrain/core/terrain_manager.gd:552`)
+cuts a 9 m flat floor THEN a 2.7 m smoothstep shoulder (`shoulder = half_w * 0.6`), so bank grade is 7.2 m out, not
+4.5. A 10 m deck at grade would end 1.1 m in the air over the shoulder. Span is 15.0 m, feet on grade at +-7.5.
+
+**The site slopes across the line - the seat pitches.** At F3 on the 9/15 seed the -X bank reads 179.10, the +X bank
+180.35, the ford floor 179.06 (probe run 1: deck end -X 1.09 m over its bank, +X 0.13 m under). No terrain helper
+levels to a TARGET (`flatten_pad` levels to the mean), so `_stamp_stream` drops the origin to the banks' mean less the
+GLB's 1.20 m deck rise and pitches about local Z by `atan2(g_b - g_a, 15)`. Run 3: ends 0.09 / 0.05 m off their
+banks, mid-span hull 0.86 m over the floor (0.31 over the water). A flat site reduces to the plain seat.
+
+**Godot contract.** `collision_table.gd`: STRUCTURES row (`box` 15 x 2.54 x 1, `mesh: true`) and `Mat.WOOD` (soft:
+`tag_ballistics` walks the hulls). Destruction: NOT wired - placed props take an exact key in
+`site_planner.gd PLACED_DESTRUCTIBLE_KINDS` and the only timber kind, `hut_timber`, swaps in `burned_hut.glb` and
+burns a 3.5 m disc (`destructible.gd RUIN_FOR / BURN_FOR`) - a burned hut mid-stream. A `bridge_timber` kind
+(HP_FOR + BLAST_FOR + the key, no ruin) is one row each and the overseer's call. Seat:
+`mission_generator.gd _stamp_stream` after the F1 log; probe: `tools/probe_stream.gd _bridge()`.
+
+**Traps.** (1) A GLB reimport ships flat-shaded SPLIT verts (24 per box): a connected-component search on the raw
+import returns single faces - `remove_doubles` first. (2) A slot-less `-colonly` hull reports `material_index 0`
+against zero slots; that is Blender's default, not a bad index - judge visible meshes only. (3) The crossing beat's
+abort (`[BEAT] crossing interrupted: cast acquired combat target`) fired on 1 of 3 probe runs with 5 squad men still
+at the firebase taking a target at 499,630 - 250 m from F3, a race in the beat, not the bridge. Runs 1 and 3 passed.
