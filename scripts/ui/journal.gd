@@ -36,6 +36,15 @@ const PENCIL := Color(0.55, 0.16, 0.13)
 
 enum Tab { GEAR, ORDERS, MISSION, LOG, MAP }
 
+## What each tasking id reads as on the page; words, never a score.
+const TASK_LABELS: Dictionary = {
+	"hq/eyes_on": "EYES ON THE VILLE",
+	"hq/downed_bird": "GET TO THAT BIRD",
+	"hq/before_dark": "IN BEFORE DARK",
+	"dealer/case": "POTEET'S CASE TO THE VILLE",
+	"dealer/sack": "THE MAIL SACK TO POTEET",
+}
+
 const TAB_NAMES: Array[String] = ["GEAR", "ORDERS", "MISSION", "LOG", "MAP"]
 
 var world: GameWorld
@@ -364,6 +373,21 @@ func _orders_left() -> Array[Dictionary]:
 		out.append({"t": "", "c": INK, "x": 0.0})
 		out.append({"t": "THE CO WANTS EYES ON IT.", "c": GRAPHITE, "x": 0.0})
 		out.append({"t": "HE DID NOT SAY HOW.", "c": GRAPHITE, "x": 0.0})
+	# The two hands' asks (HQ, the dealer): open lines stand, settled ones are struck.
+	var asks: Dictionary = CampaignState.taskings
+	if not asks.is_empty():
+		out.append({"t": "", "c": INK, "x": 0.0})
+		for id: String in TASK_LABELS.keys():
+			if not asks.has(id):
+				continue
+			var t: Dictionary = asks[id]
+			var st: StringName = StringName(t.get("state", CampaignState.TASKING_OPEN))
+			var who: String = String(t.get("claimant", "hq")).to_upper()
+			if st == CampaignState.TASKING_OPEN:
+				out.append(_row(who, String(TASK_LABELS[id])))
+			else:
+				out.append(_row(who, "%s - %s" % [String(TASK_LABELS[id]),
+					"DONE" if st == CampaignState.TASKING_CLOSED else "NOT DONE"], FADED))
 	out.append({"t": "", "c": INK, "x": 0.0})
 	out.append(_head("PLACES ON THE SHEET"))
 	var sites: Array = director.get("surveyed_sites") as Array

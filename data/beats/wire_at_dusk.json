@@ -1,0 +1,15 @@
+{
+	"id": "wire_at_dusk",
+	"trigger": {
+		"kind": "poll",
+		"name": "first_flare_after_seam",
+		"radius": 40.0,
+		"place": "parapet"
+	},
+	"lines": {
+		"skeletons": "MCCLEARY: I SWEAR I SAW SKELETONS OUT IN THE BUSH."
+	},
+	"steps": [
+		{"type": "bark", "line_key": "skeletons", "agent": "nearest_garrison"}
+	]
+}

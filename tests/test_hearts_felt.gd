@@ -10,6 +10,9 @@ extends Node
 
 const HmS := preload("res://scripts/world/hm_ledger.gd")
 const FdS := preload("res://scripts/missions/field_director.gd")
+const PrS := preload("res://scripts/world/pilot_recovery.gd")
+const DtS := preload("res://scripts/world/dealer_table.gd")
+const BbS := preload("res://scripts/missions/beat_book.gd")
 
 var _fail: int = 0
 
@@ -49,6 +52,9 @@ func _ledger() -> void:
 	_check(led.band(key) == HmS.BAND_HOSTILE, "a villager killed by his hand reads hostile")
 	var other: int = HmS.place_key(Vector3(400.0, 0.0, 80.0))
 	_check(led.band(other) == HmS.BAND_QUIET, "the next ville over knows nothing of it")
+	led.note("trade/%d/p1" % other, HmS.KIND_TRADE, other, 12.0)
+	_check(led.band(other) == HmS.BAND_QUIET and led.traded(other),
+		"a trade is its own subject: the ville reads quiet and traded, never wary")
 	var back: RefCounted = HmS.new()
 	back.from_save(led.to_save())
 	_check(back.band(key) == HmS.BAND_HOSTILE and back.has("informer/%d/talked" % key),
@@ -83,8 +89,13 @@ func _lines() -> void:
 	var banned := RegEx.new()
 	# comparatives of degree, rates and directions - the words that rebuild the meter
 	banned.compile("(?i)\\b(more|less|than before|better|worse|turning|turned|again|every time|half|most|least|percent|all the way)\\b")
-	for k in FdS.HM_LINES.keys():
-		var line: String = String(FdS.HM_LINES[k])
-		_check(digits.search(line) == null, "%s carries no numeral" % k)
-		_check(banned.search(line) == null, "%s names no quantity, rate or direction" % k)
-		_check(line.split(" ").size() <= 20, "%s is under twenty words" % k)
+	var tables: Dictionary = {"HM": FdS.HM_LINES, "CRASH": PrS.CRASH_LINES,
+		"DEALER": DtS.LINES, "BEAT": BbS.lines_of_record()}
+	_check((BbS.lines_of_record() as Dictionary).size() >= 3, "the beat book has its lines on disk")
+	for tname in tables.keys():
+		var table: Dictionary = tables[tname]
+		for k in table.keys():
+			var line: String = String(table[k])
+			_check(digits.search(line) == null, "%s.%s carries no numeral" % [tname, k])
+			_check(banned.search(line) == null, "%s.%s names no quantity, rate or direction" % [tname, k])
+			_check(line.split(" ").size() <= 20, "%s.%s is under twenty words" % [tname, k])

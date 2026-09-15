@@ -823,6 +823,13 @@ func _dispatch_lz_cycle(kind: String, squad_replacements: int = 0) -> void:
 	heli.add_to_group("air_traffic")
 	var m: float = _map_size()
 	var ang: float = rng.randf_range(0.0, TAU)
+	# The slick PilotRecovery is waiting for flies its leg IN over the ground it will fall on,
+	# so the gun that takes it and the wreck it leaves are on the same bearing from the pad.
+	var prh := get_tree().get_first_node_in_group("pilot_recovery") as PilotRecovery
+	if prh != null:
+		var site: Vector3 = prh.planned_crash_site()
+		if site != Vector3.ZERO:
+			ang = atan2(site.z - lz.global_position.z, site.x - lz.global_position.x)
 	var inbound := lz.global_position + Vector3(cos(ang), 0.0, sin(ang)) * m * 0.55
 	inbound.y = _ground_at(inbound) + heli.cruise_altitude
 	heli.global_position = inbound

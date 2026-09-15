@@ -143,17 +143,17 @@ func _run() -> void:
 
 	# 4. Lead dies -> the household promotes a living member.
 	var old_lead: Civilian = GroupWalk.lead_of(fam)
-	old_lead.state = CivScript.CivState.GONE
+	old_lead.set_civ_state(CivScript.CivState.GONE, &"test")
 	var new_lead: Civilian = GroupWalk.lead_of(fam)
 	_check(new_lead != null and new_lead != old_lead,
 		"a dead lead is replaced by a living member")
-	old_lead.state = CivScript.CivState.WANDER
+	old_lead.set_civ_state(CivScript.CivState.WANDER, &"test")
 	old_lead.is_group_lead = false
 
 	# 5. SCATTER: reactive states win. A fleeing member leaves the party, so the
 	# survivors cannot hold formation on him.
 	for c in fam:
-		(c as Civilian).state = CivScript.CivState.FLEE
+		(c as Civilian).set_civ_state(CivScript.CivState.FLEE, &"test")
 	var party: Array = (fam[0] as Civilian)._group_party()
 	_check(party.is_empty(), "a fleeing household has no party (%d members)" % party.size())
 	var held: bool = (fam[0] as Civilian)._group_walk_apply()

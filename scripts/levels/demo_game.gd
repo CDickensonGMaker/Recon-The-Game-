@@ -234,7 +234,7 @@ func _ready() -> void:
 		_seat_the_stress_night(boot_hour)
 	_apply_ambient_exclusions()
 	print("[DEMO] booted seed %d, %dm slice, %02d:%02d start, day %.0fx / night %.0fx, arc probe@%s siege@%s backstop@%ds" % [
-		boot_seed, int(GameFlow.DEMO_MAP_SIZE), int(boot_hour), int(fmod(boot_hour, 1.0) * 60.0),
+		boot_seed, int(GameFlow.demo_map_size()), int(boot_hour), int(fmod(boot_hour, 1.0) * 60.0),
 		DAY_RATIO, NIGHT_RATIO, _at_str(probe_at), _at_str(siege_at), int(END_BACKSTOP_S)])
 
 
@@ -515,6 +515,9 @@ var _m6_printed := false
 ## are already exempted from the no-rails ruling, so ADR-030's HUD deferral is untouched -
 ## no new UI element is created for the demo.
 const GATE_ORDER_AT_S: float = 10.0
+## HQ's "before dark" goes out at DUSK (17:00 sim, 1400 s at 27x) - the walk home is the order.
+const DUSK_ORDER_HOUR: float = 17.0
+var _dusk_order_issued: bool = false
 ## The order MUST expire or it becomes the rail it was written to avoid. Two expiries: the
 ## squad reaching the gate, and a hard clock for the case where compound pathing strands
 ## them. Whichever lands first hands the men back to FOLLOW.
@@ -554,6 +557,7 @@ func _tick_opening() -> void:
 				a.set_order(AllyBase.OrderMode.MOVE_TO,
 					FriendlyPatrolGroup.file_slot(i, gate, d.fsb_center))
 		d.toast.emit("SQUAD MOVING OUT")
+		d.issue_eyes_on()
 		print("[DEMO] opening: squad ordered to the gate at %.0fs" % _clock)
 		return
 	var arrived: int = 0
@@ -617,6 +621,11 @@ func _physics_process(delta: float) -> void:
 	_tick_opening()
 	_tick_air(delta)
 	_tick_napalm()
+	# HQ's last word of the day, at dusk; the seam settles it either way.
+	if not _dusk_order_issued and SimClock.sim_hour >= DUSK_ORDER_HOUR:
+		_dusk_order_issued = true
+		if _flow.director != null and is_instance_valid(_flow.director):
+			_flow.director.issue_before_dark()
 	# The ratio drops ONCE, at the day/night seam, and never climbs back inside a run.
 	if not _night_ratio_set and MissionWeather.is_night:
 		_night_ratio_set = true
@@ -625,6 +634,7 @@ func _physics_process(delta: float) -> void:
 			% [_clock, DAY_RATIO, NIGHT_RATIO, SimClock.sim_hour])
 		# The warning comes up the road at the seam, or it does not (Hearts & Minds).
 		if _flow.director != null and is_instance_valid(_flow.director):
+			_flow.director.settle_before_dark(false)
 			_flow.director.night_warning()
 	match _phase:
 		0:
@@ -791,7 +801,13 @@ func _show_end_card(title: String) -> void:
 	# S28: the demo skips the debrief (EXCLUDE_DEBRIEF), so the rescued pilot's
 	# only bank in this build is this card.
 	var fd: FieldDirector = _flow.director if _flow != null else null
-	if fd != null and int(fd.state.flags.get("pilot_recovered", 0)) > 0:
+	var crash_alive: int = int(fd.state.flags.get("crash_alive", 0)) if fd != null else 0
+	if fd != null and crash_alive > 0:
+		var walked: int = int(fd.state.flags.get("crash_walked_in", 0))
+		var bags: int = int(fd.state.flags.get("crash_kia", 0))
+		col.add_child(ReconUI.make_label("PINK PANTHER: %d WALKED IN, %d STILL OUT THERE, %d IN BAGS"
+			% [walked, crash_alive - walked, bags], 16, ReconUI.AMBER if walked > 0 else ReconUI.DIM))
+	elif fd != null and int(fd.state.flags.get("pilot_recovered", 0)) > 0:
 		col.add_child(ReconUI.make_label("THE PILOT CAME HOME", 16, ReconUI.AMBER))
 	elif fd != null and int(fd.state.flags.get("pilot_lost", 0)) > 0:
 		col.add_child(ReconUI.make_label("THE PILOT DIDN'T MAKE IT", 16, ReconUI.DIM))

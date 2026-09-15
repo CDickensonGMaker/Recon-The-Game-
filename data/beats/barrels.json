@@ -1,0 +1,19 @@
+{
+	"id": "barrels",
+	"trigger": {
+		"kind": "enter",
+		"radius": 8.0,
+		"place": "fsb_work:burn",
+		"fallback_place": "fsb_work:latrine",
+		"window": {"sim_from": 6.5, "sim_to": 7.5}
+	},
+	"lines": {
+		"detail": "DETAIL: NEW GUY. GRAB A STICK. NOBODY LEAVES THIS WIRE TILL THE BARRELS BURN.",
+		"poteet": "POTEET: COUSIN. YOU DON'T WANT THAT DETAIL. COME SEE ME. EVERYTHING HAS A PRICE, EVEN THE BARRELS."
+	},
+	"steps": [
+		{"type": "bark", "line_key": "detail", "agent": "nearest_garrison:detail"},
+		{"type": "wait", "seconds": 10.0},
+		{"type": "bark", "line_key": "poteet"}
+	]
+}

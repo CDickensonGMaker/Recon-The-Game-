@@ -217,9 +217,19 @@ func _acquire() -> Node3D:
 
 
 ## One roll per flight, ever - a plane that survives the pass has escaped.
+## A slick is never rolled: PilotRecovery names the one ship it wants (the demo's outing,
+## council 2026-09-14) and holds every day gate; this gun only puts the tracers on it.
 func _roll_kill(t: Node3D) -> void:
 	var id: int = t.get_instance_id()
 	if _rolled.has(id):
+		return
+	var heli := t as Helicopter
+	if heli != null:
+		var prh := get_tree().get_first_node_in_group("pilot_recovery") as PilotRecovery
+		if _flight_kind(t) != "huey" or prh == null or not prh.wants_slick(heli):
+			return
+		_rolled[id] = true
+		prh.request_down_heli(heli)
 		return
 	_rolled[id] = true
 	var plane := t as CASAirplane

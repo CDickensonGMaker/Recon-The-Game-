@@ -347,7 +347,7 @@ func _force_cower() -> void:
 			continue
 		if civ.global_position.distance_to(_lg.global_position) > COWER_M:
 			continue
-		civ.state = Civilian.CivState.COWER
+		civ.set_civ_state(Civilian.CivState.COWER, &"encounter")
 		if not _cowed.has(civ):
 			_cowed.append(civ)
 
@@ -355,7 +355,7 @@ func _force_cower() -> void:
 func _release_cowed() -> void:
 	for civ in _cowed:
 		if civ != null and is_instance_valid(civ) and civ.state == Civilian.CivState.COWER:
-			civ.state = Civilian.CivState.WANDER
+			civ.set_civ_state(Civilian.CivState.WANDER, &"encounter_over")
 	_cowed.clear()
 
 

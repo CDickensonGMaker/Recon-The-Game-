@@ -156,8 +156,10 @@ func _wake_snap(civ: Civilian) -> void:
 	# is only handed his bunk after it); a puppet or a boarding man is somebody else's.
 	if civ.scheduled_action() == &"" or civ.puppet or civ.board_target != Vector3.ZERO:
 		return
+	var wary: bool = civ.village_center != Vector3.ZERO \
+		and CampaignState.hearts.band(HmLedger.place_key(civ.village_center)) != HmLedger.BAND_QUIET
 	var due: StringName = CivilianSchedules.action_for(civ.occupation, SimClock.sim_hour,
-		String(civ.name))
+		String(civ.name), wary)
 	if due == civ.scheduled_action() or CombatManager.perceivable(civ):
 		return
 	var from: Vector3 = civ.global_position

@@ -6,6 +6,8 @@ extends Node
 ## Preloaded, not by class_name: a global class is not registered until the editor
 ## rescans, so a fresh script fails every headless run.
 const TITLE_SPLASH := preload("res://scripts/ui/screens/title_splash.gd")
+const DEALER_TABLE := preload("res://scripts/world/dealer_table.gd")
+const BEAT_BOOK := preload("res://scripts/missions/beat_book.gd")
 
 var current_screen: Node = null
 var world: GameWorld = null
@@ -93,7 +95,26 @@ func _dev_keys(event: InputEvent) -> bool:
 			get_viewport().set_input_as_handled()
 			_dev_cycle_clock_speed()
 			return true
+		KEY_F9:
+			get_viewport().set_input_as_handled()
+			_dev_observatory().toggle_observatory()
+			return true
 	return false
+
+
+## THE OBSERVATORY (council 2026-09-14 ruling 7): scripts/dev/observation_tools.gd attached to
+## the live world on first F9 (or `--observatory` at boot). Debug builds only - _dev_keys and
+## the attach site are both is_debug_build-gated, so a shipped build never loads the file.
+var _observatory: Node = null
+
+func _dev_observatory() -> Node:
+	if _observatory != null and is_instance_valid(_observatory):
+		return _observatory
+	var script: GDScript = load("res://scripts/dev/observation_tools.gd") as GDScript
+	_observatory = script.new()
+	_observatory.set("live_world", true)
+	world.add_child(_observatory)
+	return _observatory
 
 
 ## Sim-hours at which the world changes period (sim_clock.gd:57-64).
@@ -714,6 +735,10 @@ func enter_hub() -> void:
 	squad.setup(world, director, spawn)
 	director.squad_system = squad
 	director.setup_patrol(built)
+	# Poteet's table beside the dump (both worlds); the authored beats ride the demo day only.
+	DEALER_TABLE.stamp(world, director, patrol_plan.get("fsb_center", Vector3.ZERO) as Vector3)
+	if demo_mode:
+		BEAT_BOOK.attach(world, director)
 	# Death outside the wire is a field AAR, then you wake at the firebase
 	# (Pillar 5) - same debrief pipeline, patrol framing.
 	director.mission_failed.connect(_on_mission_ended)
@@ -788,12 +813,26 @@ func enter_hub() -> void:
 			push_warning("[ROOF-PROBE] probe_roof_spawn.gd absent in this build")
 		else:
 			world.add_child(roof.new())
+	if args.has("--observatory") and OS.is_debug_build():
+		_dev_observatory().call("set_observatory", true)
 	if args.has("--npc-census"):
 		var census: GDScript = load("res://tools/probe_npc_census.gd") as GDScript
 		if census == null:
 			push_warning("[NPC-CENSUS] probe_npc_census.gd absent in this build")
 		else:
 			world.add_child(census.new())
+	if args.has("--crash-probe"):
+		var crash: GDScript = load("res://tools/probe_crash_recovery.gd") as GDScript
+		if crash == null:
+			push_warning("[CRASH-PROBE] probe_crash_recovery.gd absent in this build")
+		else:
+			world.add_child(crash.new())
+	if args.has("--dealer-probe"):
+		var dealer: GDScript = load("res://tools/probe_dealer.gd") as GDScript
+		if dealer == null:
+			push_warning("[DEALER-PROBE] probe_dealer.gd absent in this build")
+		else:
+			world.add_child(dealer.new())
 	if args.has("--pen-probe"):
 		var pen: GDScript = load("res://tools/probe_firebase_penetration.gd") as GDScript
 		if pen == null:

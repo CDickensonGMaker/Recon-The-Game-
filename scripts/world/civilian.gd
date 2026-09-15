@@ -21,7 +21,16 @@ enum CivState { WANDER, FLEE, COWER, GONE }
 ## Summoner call, not a silent one.
 const CIVILIAN_HURTBOX_LAYER: int = 512
 
+## Written ONLY through set_civ_state - the decision ring hangs off that one door.
 var state: CivState = CivState.WANDER
+const DecisionRingS := preload("res://scripts/dev/decision_ring.gd")
+const STATE_NAMES: Array[StringName] = [&"WANDER", &"FLEE", &"COWER", &"GONE"]
+var _ring_what: Array[StringName] = []
+var _ring_cause: Array[StringName] = []
+var _ring_when: PackedFloat64Array = PackedFloat64Array()
+var _last_noise_type: int = -1
+var _last_noise_pos: Vector3 = Vector3.ZERO
+var _last_noise_ms: float = -1e9
 var home: Vector3
 var is_informer: bool = false
 ## Preloaded, not by class_name: a global class is not registered until the editor rescans.
@@ -453,6 +462,10 @@ func _on_noise(type: int, noise_pos: Vector3, radius: float, team: int,
 		return
 	if state == CivState.GONE:
 		return
+	if global_position.distance_to(noise_pos) <= radius:
+		_last_noise_type = type
+		_last_noise_pos = noise_pos
+		_last_noise_ms = float(Time.get_ticks_msec())
 	if is_garrison:
 		# A soldier answers audible ENEMY fire (audibility = the emitted radius).
 		# Friendly noise never stands the base to, and the director gates on the
@@ -466,7 +479,8 @@ func _on_noise(type: int, noise_pos: Vector3, radius: float, team: int,
 	if type == NoiseBus.NoiseType.GUNSHOT or type == NoiseBus.NoiseType.EXPLOSION:
 		if global_position.distance_to(noise_pos) < 60.0:
 			var was_calm: bool = state == CivState.WANDER
-			state = CivState.FLEE if randf() < 0.6 else CivState.COWER
+			set_civ_state(CivState.FLEE if randf() < 0.6 else CivState.COWER,
+				&"heard_gunshot" if type == NoiseBus.NoiseType.GUNSHOT else &"heard_explosion")
 			if was_calm:
 				_call_for_aid()
 
@@ -542,12 +556,12 @@ func _physics_step_civilian(delta: float) -> void:
 				player.global_position + Vector3.UP * 1.0, [self]):
 		_inform_clock = 0.0
 		_saw_player_at = player.global_position
-		state = CivState.FLEE
+		set_civ_state(CivState.FLEE, &"informer_saw")
 	if _inform_clock >= 0.0:
 		_inform_clock += delta
 		if _inform_clock > 25.0:
 			_inform_clock = -1.0
-			state = CivState.GONE
+			set_civ_state(CivState.GONE, &"informer_escaped")
 			if director:
 				director.toast.emit("THAT VILLAGER TALKED - THEY KNOW YOU'RE HERE")
 			_transform_to_vc()
@@ -1081,20 +1095,21 @@ func take_damage(amount: int, _t: Enums.DamageType = Enums.DamageType.PHYSICAL,
 		amount = _hp + 999
 	_hp -= amount
 	if _hp > 0:
-		state = CivState.FLEE if randf() < 0.5 else CivState.COWER
+		set_civ_state(CivState.FLEE if randf() < 0.5 else CivState.COWER, &"shot")
 		return amount
 	_die(attacker, zone, amount)
 	return amount
 
 
 func _die(attacker: Node, zone: String, amount: int) -> void:
-	state = CivState.GONE
+	set_civ_state(CivState.GONE, &"died")
 	# Hearts & Minds: a villager killed by the player's own hand is the deed a ville holds
 	# hardest (HmLedgerS.band -> hostile). The province, not the score, remembers it.
 	if attacker != null and attacker == GameManager.player and village_center != Vector3.ZERO:
 		var key: int = HmLedgerS.place_key(village_center)
 		CampaignState.hearts.note("civ/%d/%s/killed" % [key, String(name)],
-			HmLedgerS.KIND_KILLED, key, _read_sim_hour())
+			HmLedgerS.KIND_KILLED, key, _read_sim_hour(),
+			"%s %s shot by the player (%s, %d)" % [occupation, String(name), zone, amount])
 	AgentRegistry.unregister(self)
 	set_physics_process(false)
 	_set_shovel(false)
@@ -1169,7 +1184,7 @@ func on_atrocity_witnessed(at: Vector3) -> void:
 	is_informer = true
 	_inform_clock = 0.0
 	_saw_player_at = at
-	state = CivState.FLEE
+	set_civ_state(CivState.FLEE, &"atrocity_witnessed")
 
 
 ## Informer alarm fired. Swap the model to a VC variant, drop the civilian out
@@ -1189,7 +1204,8 @@ func _transform_to_vc() -> void:
 	if village_center != Vector3.ZERO:
 		var key: int = HmLedgerS.place_key(village_center)
 		CampaignState.hearts.note("informer/%d/talked" % key, HmLedgerS.KIND_INFORMER, key,
-			_read_sim_hour())
+			_read_sim_hour(), "%s %s saw the player at (%.0f, %.0f) and ran" % [
+				occupation, String(name), _saw_player_at.x, _saw_player_at.z])
 	if director:
 		director.on_informer_escaped(global_position, _saw_player_at)
 
@@ -1309,6 +1325,52 @@ func _wary() -> bool:
 	if village_center == Vector3.ZERO:
 		return false
 	return CampaignState.hearts.band(HmLedgerS.place_key(village_center)) != HmLedgerS.BAND_QUIET
+
+
+## THE ONE DOOR for `state` (fossil law, 2026-09-14): every write lands here so the
+## decision ring sees it. `cause` is the caller's word, never built.
+func set_civ_state(new_state: CivState, cause: StringName = &"") -> void:
+	if new_state == state:
+		return
+	state = new_state
+	DecisionRingS.push(_ring_what, _ring_cause, _ring_when, STATE_NAMES[int(new_state)], cause)
+
+
+## DEV READOUT (observatory): what this man is doing and why, as a Dictionary the tool
+## formats. Read on demand only - never called by the body itself.
+func snapshot() -> Dictionary:
+	var now_ms: float = float(Time.get_ticks_msec())
+	var band: StringName = &"-"
+	if village_center != Vector3.ZERO:
+		band = CampaignState.hearts.band(HmLedgerS.place_key(village_center))
+	var d: Dictionary = {
+		"kind": "civilian", "name": String(name), "occupation": occupation, "role": role,
+		"state": String(STATE_NAMES[int(state)]), "garrison": is_garrison,
+		"informer": is_informer, "inform_clock": _inform_clock,
+		"scheduled": String(scheduled_action()), "active": String(active_action),
+		"speed_wanted": float(_bt_bb.get("speed", -1.0)), "want_speed": _want_speed,
+		"speed": Vector2(velocity.x, velocity.z).length(),
+		"destination": _wander_target, "working_point": working_point_pos, "home": home,
+		"village_center": village_center, "band": String(band),
+		"lod": ["FULL", "NEAR", "FAR"][clampi(lod_tier, 0, 2)],
+		"suspended": has_meta("suspended") or not is_physics_processing(),
+		"puppet": puppet, "crew_driver": crew_driver.name if crew_driver != null else "",
+		"boarding": board_target != Vector3.ZERO, "group_id": group_id,
+		"stand_to_held": director.stand_to_held if director != null else false,
+		"unstick_t": _unstick_t, "unstick_flips": _unstick_flips, "stuck_t": _stuck_t,
+		"saw_player_at": _saw_player_at, "hp": _hp,
+		"clip": actor.current_action if actor != null else "-",
+		"nav_box": _router.box,
+		"last_noise_type": _last_noise_type, "last_noise_pos": _last_noise_pos,
+		"last_noise_age": (now_ms - _last_noise_ms) * 0.001 if _last_noise_ms > 0.0 else -1.0,
+		"ring": DecisionRingS.format(_ring_what, _ring_cause, _ring_when),
+	}
+	if _router.agent != null:
+		d["nav_finished"] = _router.agent.is_navigation_finished()
+		d["nav_path_pts"] = _router.agent.get_current_navigation_path().size()
+	var snapped: Vector3 = _router.nearest_mesh_point(global_position)
+	d["off_mesh_m"] = Vector2(snapped.x - global_position.x, snapped.z - global_position.z).length()
+	return d
 
 
 ## The action the schedule named this hour. Stable for the whole hour, unlike

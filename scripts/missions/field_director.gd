@@ -94,7 +94,23 @@ func _hostile_within(center: Vector3, radius: float) -> bool:
 ## the stand-to it brings is the same one the probe brings 73 s later.
 const HM_LINES: Dictionary = {
 	"kid_up_the_road": "SIX: THE VILLE SENT A KID UP THE ROAD. SOMETHING'S MOVING TONIGHT.",
+	"eyes_on": "TOC: YOU'RE THE NEW MAN. WALK THE VILLE WITH THE PATROL AND SEE WHO'S HOME. THAT'S ALL TODAY.",
+	"eyes_quiet": "TOC: INTEL SAYS THE VILLE'S STILL TALKING TO THE ARVN. THAT'S THE ONLY THING I WANT TO HEAR.",
+	"eyes_wary": "TOC: INTEL SAYS THE VILLE'S GONE QUIET ON US. NOBODY'S REPORTING. FIX IT.",
+	"elder_points": "THE ELDER POINTS UP THE VALLEY AND SAYS A NAME. THE MAP TAKES IT.",
+	"before_dark": "SIX: GET INSIDE THE WIRE BEFORE DARK.",
+	"before_dark_in": "SIX: GOOD. STAND TO WHEN THE SUN GOES.",
 }
+
+## THE HQ CHAIN (council 2026-09-14): three taskings, each issued by the clock or an incident,
+## never gated on the one before; closed by a predicate the probe can call; its lever is a KIND
+## of thing present or absent, read off the ledger's band. The assault never waits on any of it.
+const TASK_EYES_ON: String = "hq/eyes_on"
+const TASK_BEFORE_DARK: String = "hq/before_dark"
+const EYES_ON_ARRIVE_M: float = 40.0
+const EYES_ON_LEAVE_M: float = 120.0
+var _eyes_village: Vector3 = Vector3.ZERO
+var _eyes_arrived: bool = false
 
 
 func night_warning() -> void:
@@ -103,6 +119,88 @@ func night_warning() -> void:
 			return
 	toast.emit(HM_LINES["kid_up_the_road"])
 	_garrison_stand_to()
+
+
+## H1, issued at the gate order. The ville is the nearest one to the gate.
+func issue_eyes_on() -> void:
+	if _eyes_village != Vector3.ZERO:
+		return
+	var best: Vector3 = Vector3.ZERO
+	var best_d: float = INF
+	for c in _known_village_centers():
+		var d: float = c.distance_to(patrol_gate_pos)
+		if d < best_d:
+			best_d = d
+			best = c
+	if best == Vector3.ZERO:
+		return
+	_eyes_village = best
+	if CampaignState.issue_tasking(TASK_EYES_ON, "hq", SimClock.sim_hour):
+		toast.emit(HM_LINES["eyes_on"])
+
+
+## H1's close: he walked through and out again. Fire discipline broken there is the tasking
+## not met. What the ville gives him for it is the band's, not HQ's: quiet, the elder names the
+## camp on the sheet; wary, nothing; hostile, the responders come whether he was seen or not.
+func _poll_eyes_on() -> void:
+	if _eyes_village == Vector3.ZERO or world == null or world.player == null:
+		return
+	if CampaignState.tasking_state(TASK_EYES_ON) != CampaignState.TASKING_OPEN:
+		return
+	var pp: Vector3 = world.player.global_position
+	var d: float = Vector2(pp.x - _eyes_village.x, pp.z - _eyes_village.z).length()
+	if not _eyes_arrived:
+		if d <= EYES_ON_ARRIVE_M:
+			_eyes_arrived = true
+		return
+	if d < EYES_ON_LEAVE_M:
+		return
+	var key: int = HmLedgerS.place_key(_eyes_village)
+	var band: StringName = CampaignState.hearts.band(key)
+	if band == HmLedgerS.BAND_QUIET:
+		CampaignState.settle_tasking(TASK_EYES_ON, CampaignState.TASKING_CLOSED, "walked the ville, nothing left behind")
+		toast.emit(HM_LINES["eyes_quiet"])
+		var camp: Vector3 = _nearest_camp(_eyes_village)
+		if camp != Vector3.ZERO:
+			CampaignState.reported_marks.append({"x": camp.x, "z": camp.z, "kind": "VILLAGER",
+				"patrol_no": CampaignState.missions_played})
+			toast.emit(HM_LINES["elder_points"])
+		return
+	CampaignState.settle_tasking(TASK_EYES_ON, CampaignState.TASKING_REFUSED,
+		"the ville reads %s" % String(band))
+	toast.emit(HM_LINES["eyes_wary"])
+	if band == HmLedgerS.BAND_HOSTILE:
+		on_informer_escaped(_eyes_village, pp)
+
+
+func _nearest_camp(from: Vector3) -> Vector3:
+	var best: Vector3 = Vector3.ZERO
+	var best_d: float = INF
+	for loc in patrol_locations:
+		if str(loc.get("kind", "")) != "vc_camp":
+			continue
+		var p: Vector3 = loc.get("pos", Vector3.ZERO)
+		var d: float = p.distance_to(from)
+		if p != Vector3.ZERO and d < best_d:
+			best_d = d
+			best = p
+	return best
+
+
+## H4, issued at dusk; closes when the patrol banks before the seam.
+func issue_before_dark() -> void:
+	if CampaignState.issue_tasking(TASK_BEFORE_DARK, "hq", SimClock.sim_hour):
+		toast.emit(HM_LINES["before_dark"])
+
+
+func settle_before_dark(inside: bool) -> void:
+	if CampaignState.tasking_state(TASK_BEFORE_DARK) != CampaignState.TASKING_OPEN:
+		return
+	if inside:
+		CampaignState.settle_tasking(TASK_BEFORE_DARK, CampaignState.TASKING_CLOSED, "inside the wire before the seam")
+		toast.emit(HM_LINES["before_dark_in"])
+	else:
+		CampaignState.settle_tasking(TASK_BEFORE_DARK, CampaignState.TASKING_REFUSED, "still out at the seam")
 
 
 ## Spawn an enemy seated on terrain and wire its death into mission counters.
@@ -345,6 +443,7 @@ func _process_step(delta: float) -> void:
 		_poll_firebase_threat()
 		_advance_route_tasking()
 		_poll_sweep()
+		_poll_eyes_on()
 		if patrol_out and world != null and world.player != null:
 			state.mark_covered(world.player.global_position)
 	# Fire-support menu (T opens, 1-5 selects while open, Y = mortar shortcut).
@@ -1283,6 +1382,7 @@ const CRISIS_CALL: Dictionary = {
 	"vc_camp": "S2: CAMP LOCATION CONFIRMED",
 	"pinned_patrol": "SIX: FRIENDLY ELEMENT PINNED",
 	"ambushed_convoy": "SIX: CONVOY AMBUSHED",
+	"downed_bird": "GRAPE: YOUR ELEMENT IS CLOSEST. GET TO THAT BIRD. BRING ME EVERYBODY WHO'S BREATHING",
 }
 
 var patrol_gate_pos := Vector3.ZERO
@@ -2170,6 +2270,7 @@ func roll_the_night() -> bool:
 
 func _bank_patrol() -> void:
 	_patrol_pending = false
+	settle_before_dark(true)
 	bank_field_marks()
 	var report: String = _route_report()
 	if not report.is_empty():

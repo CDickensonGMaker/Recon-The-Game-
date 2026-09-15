@@ -27,6 +27,38 @@ var threat_modifiers: Array = []  ## [{delta: float, missions_left: int, reason:
 ## an autoload that fails to parse takes every headless run down with it.
 const HmLedgerS := preload("res://scripts/world/hm_ledger.gd")
 var hearts: RefCounted = HmLedgerS.new()
+## The taskings both claimants (HQ and the dealer) put to the player, by stable id
+## ("hq/eyes_on", "hq/downed_bird", "dealer/case", ...). id -> {state, since, cause, claimant}.
+## One object, two claimants: closing an id one way refuses its twin. States are words, never
+## a score; the journal's ORDERS page draws them as lines struck through or not.
+var taskings: Dictionary = {}
+const TASKING_OPEN: StringName = &"open"
+const TASKING_CLOSED: StringName = &"closed"
+const TASKING_REFUSED: StringName = &"refused"
+
+
+func issue_tasking(id: String, claimant: String, sim_hour: float) -> bool:
+	if taskings.has(id):
+		return false
+	taskings[id] = {"state": TASKING_OPEN, "since": sim_hour, "cause": "", "claimant": claimant}
+	return true
+
+
+func settle_tasking(id: String, state: StringName, cause: String) -> bool:
+	if not taskings.has(id):
+		return false
+	var t: Dictionary = taskings[id]
+	if StringName(t.get("state", TASKING_OPEN)) != TASKING_OPEN:
+		return false
+	t["state"] = state
+	t["cause"] = cause
+	return true
+
+
+func tasking_state(id: String) -> StringName:
+	if not taskings.has(id):
+		return &""
+	return StringName((taskings[id] as Dictionary).get("state", TASKING_OPEN))
 ## The player's HIDDEN reputation (ADR-032): banked AAR score. NEVER shown as a
 ## number anywhere - it surfaces only as title() and the armory tiers it opens.
 var reputation: int = 0
@@ -263,6 +295,11 @@ func on_mission_end(result: Dictionary) -> void:
 	if int(result.get("pilot_lost", 0)) > 0:
 		kia_total += 1
 		bags_unlifted += 1
+	# The slick's dead fell where the ship did; they are bagged Americans like the pilot above.
+	var crash_kia: int = int(result.get("crash_kia", 0))
+	if crash_kia > 0:
+		kia_total += crash_kia
+		bags_unlifted += crash_kia
 	# THE DEAD ARE BANKED. squad_system.gd:443 has always named every man lost into
 	# state.flags["squad_kia"], and this function threw the list away - then
 	# SquadRoster.ensure_roster deleted the bodies, so nothing in the campaign remembered
@@ -320,6 +357,7 @@ func save_campaign() -> void:
 	cfg.set_value("campaign", "threat_modifiers", threat_modifiers)
 	cfg.set_value("campaign", "reputation", reputation)
 	cfg.set_value("campaign", "hearts", hearts.to_save())
+	cfg.set_value("campaign", "taskings", taskings.duplicate(true))
 	cfg.set_value("campaign", "roster", roster)
 	cfg.set_value("campaign", "missions_played", missions_played)
 	cfg.set_value("campaign", "mission_log", mission_log)
@@ -369,6 +407,8 @@ func load_campaign() -> void:
 	# Pre-ADR-032 saves banked this pool under "team_xp" - same points, new name.
 	reputation = int(cfg.get_value("campaign", "reputation", cfg.get_value("campaign", "team_xp", 0)))
 	hearts.from_save(cfg.get_value("campaign", "hearts", {}))
+	var saved_taskings: Variant = cfg.get_value("campaign", "taskings", {})
+	taskings = (saved_taskings as Dictionary).duplicate(true) if saved_taskings is Dictionary else {}
 	roster = cfg.get_value("campaign", "roster", [])
 	missions_played = int(cfg.get_value("campaign", "missions_played", 0))
 	mission_log = cfg.get_value("campaign", "mission_log", [])
@@ -460,6 +500,7 @@ func reset_campaign() -> void:
 	threat_level = BASE_THREAT
 	threat_modifiers = []
 	hearts = HmLedgerS.new()
+	taskings = {}
 	reputation = 0
 	roster = []
 	missions_played = 0
