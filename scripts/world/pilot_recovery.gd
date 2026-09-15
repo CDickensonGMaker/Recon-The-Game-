@@ -33,7 +33,9 @@ const CRASH_AHEAD_M: float = 220.0
 const WRECK_BURN_S: float = 1500.0
 ## He stands up for the man who came for him, not for a passer-by at 40m.
 const WAKE_M: float = 12.0
-const HOME_M: float = 30.0
+## Inside the wire, not at the flagpole: the compound is ~110 m to its short wall and its centre
+## sits in a building, so a man 31 m out was walking into the TOC for the rest of the day.
+const HOME_M: float = 60.0
 ## THE UNCONDITIONAL CLOCK. Neither phase had one, and encounter_active() suppresses every
 ## ambient encounter while this chain is live - so a pilot the player never walked out to
 ## silently killed the walking dice for the whole rest of the run, and the symptom read as
@@ -69,9 +71,13 @@ const SURVIVOR_STANDOFF_M: float = 16.0
 const STUCK_SNAP_S: float = 8.0
 const STUCK_SPEED_MPS: float = 0.3
 const STUCK_SLOT_M: float = 6.0
-## Wounded bands: HIT / CRIT, as hp fractions and walking pace.
+## Wounded bands: HIT / CRIT, as hp fractions and walking pace. THE PACE CAP (his ruling
+## 2026-09-15): a wounded man never makes the walk home more than CRIT_EXTRA_S longer than a
+## healthy man's walk from the same wreck, so the slowest pace is raised per incident until
+## site_distance / (pace * move_speed) <= site_distance / move_speed + CRIT_EXTRA_S.
 const WOUND_HP: Array[float] = [1.0, 0.55, 0.30]
 const WOUND_SPEED: Array[float] = [1.0, 0.6, 0.35]
+const CRIT_EXTRA_S: float = 120.0
 ## Pickets at the wreck by the nearest village's reading of the player: quiet / wary / hostile.
 const PICKETS_BY_BAND: Dictionary = {&"quiet": 2, &"wary": 3, &"hostile": 5}
 
@@ -433,7 +439,9 @@ func _roll_survivors(heli: Helicopter, aboard: Array[Civilian], crew_n: int,
 		ally.set_meta("crash_wound", band)
 		if band > 0:
 			ally.current_hp = maxi(1, int(float(ally.max_hp) * WOUND_HP[band]))
-			ally.move_speed *= WOUND_SPEED[band]
+			var pace: float = capped_pace(WOUND_SPEED[band], pos.distance_to(director.fsb_center), ally.move_speed)
+			ally.set_meta("crash_pace", pace)
+			ally.move_speed *= pace
 		ally.file_slot = _men.size() + 1
 		ally.point_slot = false
 		ally.defense_zone = ally.global_position
@@ -785,6 +793,17 @@ func _ward_pos() -> Vector3:
 			if str(post.get("occupation", "")) == occ:
 				return MissionGenerator._seat(world, post.get("pos", director.fsb_center) as Vector3)
 	return director.fsb_center
+
+
+## The pace a wounded man walks at: the band's, unless that would put him more than
+## CRIT_EXTRA_S behind a healthy man over this wreck's walk home - then the pace that lands him
+## exactly CRIT_EXTRA_S behind. Pure, so the probe can hold it to the same arithmetic.
+static func capped_pace(band_pace: float, walk_m: float, healthy_mps: float) -> float:
+	if walk_m <= 0.0 or healthy_mps <= 0.0:
+		return band_pace
+	var healthy_s: float = walk_m / healthy_mps
+	var floor_pace: float = healthy_s / (healthy_s + CRIT_EXTRA_S)
+	return maxf(band_pace, floor_pace)
 
 
 ## Read-only for the probe and the observatory.

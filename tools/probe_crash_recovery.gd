@@ -110,6 +110,21 @@ func _ready() -> void:
 		"the dead fell at the wreck (%d)" % int(_director.state.flags.get("crash_kia_placed", 0)))
 	_check(CampaignState.tasking_state(PilotRecovery.TASKING_ID) == CampaignState.TASKING_OPEN,
 		"HQ's tasking is open")
+	# THE PACE CAP: no wounded man's walk home may run more than CRIT_EXTRA_S past a healthy
+	# man's from this wreck, by the arithmetic the men were given.
+	var walk_m: float = (inc.get("crash_pos", Vector3.ZERO) as Vector3).distance_to(_director.fsb_center)
+	for m in _pr.men():
+		var wound: int = int(m.get_meta("crash_wound", 0))
+		if wound == 0:
+			continue
+		var pace: float = float(m.get_meta("crash_pace", 1.0))
+		var healthy_s: float = walk_m / (m.move_speed / pace)
+		var wounded_s: float = walk_m / m.move_speed
+		_check(wounded_s - healthy_s <= PilotRecovery.CRIT_EXTRA_S + 0.5,
+			"%s (wound %d, pace %.2f) walks %.0f m in %.0f s, %.0f s over a healthy man (cap %.0f)"
+			% [str(m.get_meta("crash_role", "?")), wound, pace, walk_m, wounded_s, wounded_s - healthy_s, PilotRecovery.CRIT_EXTRA_S])
+	_check(PilotRecovery.capped_pace(0.35, 900.0, 5.6) > 0.35 and PilotRecovery.capped_pace(0.35, 200.0, 5.6) == 0.35,
+		"the cap lifts a CRIT pace on a long walk and leaves a short one alone")
 	_check(_pr._used and _pr.planned_crash_site() == Vector3.ZERO, "a second ship is refused today")
 	await _escort()
 	_finish()

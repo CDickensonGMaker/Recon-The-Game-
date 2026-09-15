@@ -1,0 +1,30 @@
+{
+	"id": "crossing",
+	"trigger": {
+		"kind": "poll",
+		"name": "squad_bunched",
+		"place": "ford:F1",
+		"radius": 6.0,
+		"bunch_radius": 12.0,
+		"bunch_count": 4,
+		"once": true,
+		"window": {"sim_from": 7.5, "sim_to": 9.0}
+	},
+	"lines": {
+		"slippery": "KID: SHIT, THIS LOG IS SLIPPERY.",
+		"going_in": "KID: WHOA. I'M GOING IN.",
+		"rifle_first": "MCCLEARY: GET HIM OUT. AND GET HIS RIFLE OUT FIRST.",
+		"far_bank": "EYES: SOMEBODY ON THE FAR BANK. NO WEAPON. HE'S SURE IN A HURRY THOUGH."
+	},
+	"steps": [
+		{"type": "play_clip", "agent": "squad:second", "clip": "stumble_hit"},
+		{"type": "bark", "line_key": "slippery", "agent": "squad:second"},
+		{"type": "wait", "seconds": 2.5},
+		{"type": "bark", "line_key": "going_in", "agent": "squad:second"},
+		{"type": "wait", "seconds": 3.0},
+		{"type": "bark", "line_key": "rifle_first"},
+		{"type": "signal", "name": "runner_sees"},
+		{"type": "wait", "seconds": 4.0},
+		{"type": "bark", "line_key": "far_bank"}
+	]
+}

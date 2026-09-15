@@ -6,8 +6,13 @@
 ## window {sim_from, sim_to}}, lines {key: line}, steps [ScriptedSequence step shapes, with
 ## "line_key" resolved to "line" and "agent": "nearest_garrison" resolved to a live man]}.
 ## Places: "fsb_work:<type>" (a work-marker family under the seated compound), "parapet" (the
-## nearest FSB_PARAPET_GROUP member to the player). Once per sim day per id. bark steps go out
-## on director.toast. Every line is grepped by tests/test_hearts_felt.gd (lines_of_record).
+## nearest FSB_PARAPET_GROUP member to the player), "ford:<F1|F2|F3>" and "way_station" (the
+## demo plan's stream, plan_demo_world). Once per sim day per id; `"once": true` on the
+## trigger is once per run. bark steps go out on director.toast. Every line is grepped by
+## tests/test_hearts_felt.gd (lines_of_record). Actors: "nearest_garrison[:occupation]",
+## "squad:point" (the point man), "squad:second" (the man behind him). A "signal" step named
+## "runner_sees" hands the far-bank runner (mission_generator's FarBankRunner) the sight of
+## the squad: the existing informer clock, so his escape lands on informer/<ville>/talked.
 class_name BeatBook
 extends Node
 
@@ -20,6 +25,7 @@ const WIRE_GUARD_M: float = 70.0
 
 var world: GameWorld = null
 var director: FieldDirector = null
+var plan: Dictionary = {}
 var beats: Dictionary = {}       ## id -> the parsed file
 var fired_day: Dictionary = {}   ## id -> sim_day it played
 var fire_count: Dictionary = {}  ## id -> times it played (the probe's negative)
@@ -27,11 +33,13 @@ var _triggers: Dictionary = {}   ## id -> MissionTrigger
 var _poll: float = 0.0
 
 
-static func attach(game_world: GameWorld, field_director: FieldDirector) -> BeatBook:
+static func attach(game_world: GameWorld, field_director: FieldDirector,
+		patrol_plan: Dictionary = {}) -> BeatBook:
 	var book := BeatBook.new()
 	book.name = "BeatBook"
 	book.world = game_world
 	book.director = field_director
+	book.plan = patrol_plan
 	game_world.add_child(book)
 	book.add_to_group("beat_book")
 	return book
@@ -117,6 +125,11 @@ func _resolve_place(spec: String) -> Vector3:
 		if at != Vector3.ZERO and world != null:
 			at.y = world.floor_y(at + Vector3.UP * 0.5)
 		return at
+	if spec.begins_with("ford:"):
+		var fords: Dictionary = (plan.get("stream", {}) as Dictionary).get("fords", {})
+		return fords.get(spec.trim_prefix("ford:"), Vector3.ZERO)
+	if spec == "way_station":
+		return (plan.get("way_station", {}) as Dictionary).get("center", Vector3.ZERO)
 	return Vector3.ZERO
 
 
@@ -137,6 +150,8 @@ func _process(delta: float) -> void:
 		var trig: Dictionary = (beats[id] as Dictionary).get("trigger", {})
 		if str(trig.get("kind", "")) != "poll" or int(fired_day.get(id, -1)) == SimClock.sim_day:
 			continue
+		if not _in_window(beats[id]):
+			continue
 		if _poll_condition(str(trig.get("name", "")), trig):
 			fire(id)
 
@@ -145,7 +160,84 @@ func _poll_condition(cond: String, trig: Dictionary) -> bool:
 	match cond:
 		"first_flare_after_seam":
 			return _first_flare_after_seam(float(trig.get("radius", 40.0)))
+		"squad_bunched":
+			return _squad_bunched(trig)
 	return false
+
+
+## The point man within `radius` of the place and at least `bunch_count` living squad men
+## (him included) inside `bunch_radius` of it - a file closed up at a crossing.
+func _squad_bunched(trig: Dictionary) -> bool:
+	var place: Vector3 = _resolve_place(str(trig.get("place", "")))
+	if place == Vector3.ZERO:
+		return false
+	var point: AllyBase = _point_man()
+	if point == null:
+		return false
+	var flat := Vector3(1.0, 0.0, 1.0)
+	if ((point.global_position - place) * flat).length() > float(trig.get("radius", 6.0)):
+		return false
+	var bunch_r: float = float(trig.get("bunch_radius", 12.0))
+	var n: int = 0
+	for m in _squad_men():
+		if ((m.global_position - place) * flat).length() <= bunch_r:
+			n += 1
+	return n >= int(trig.get("bunch_count", 4))
+
+
+func _squad_men() -> Array[AllyBase]:
+	var out: Array[AllyBase] = []
+	if director == null or director.squad_system == null or not is_instance_valid(director.squad_system):
+		return out
+	for m: AllyBase in director.squad_system.members:
+		if m == null or not is_instance_valid(m) or not m.is_inside_tree():
+			continue
+		if m.has_method("is_dead") and bool(m.call("is_dead")):
+			continue
+		out.append(m)
+	return out
+
+
+func _point_man() -> AllyBase:
+	var men: Array[AllyBase] = _squad_men()
+	for m in men:
+		if m.point_slot:
+			return m
+	return men[0] if not men.is_empty() else null
+
+
+## The man behind the point man: the living member nearest him who is not him.
+func _second_man() -> AllyBase:
+	var point: AllyBase = _point_man()
+	if point == null:
+		return null
+	var best: AllyBase = null
+	var best_d: float = INF
+	for m in _squad_men():
+		if m == point:
+			continue
+		var d: float = m.global_position.distance_to(point.global_position)
+		if d < best_d:
+			best_d = d
+			best = m
+	return best
+
+
+## The far-bank runner SEES the bunched squad: the informer clock starts on him exactly as it
+## would had he seen the player himself (civilian.gd's 25 s), so catching him inside it stops
+## the word and letting him go notes informer/<ville>/talked. Nothing here is an atrocity;
+## the hook is the one entry the clock has.
+func _runner_sees() -> void:
+	var player: Node3D = GameManager.player as Node3D
+	if player == null:
+		return
+	for n in get_tree().get_nodes_in_group("far_bank_runner"):
+		var civ := n as Civilian
+		if civ == null or not is_instance_valid(civ):
+			continue
+		civ.on_atrocity_witnessed(player.global_position)
+		print("[BEAT] the runner saw the squad at %s" % player.global_position)
+		return
 
 
 ## The seam has passed, the wire is lit (a flare up or the garrison stood to), the player is
@@ -187,6 +279,9 @@ func _nearest_parapet_m(from: Vector3) -> float:
 func fire(id: String) -> bool:
 	if not beats.has(id) or int(fired_day.get(id, -1)) == SimClock.sim_day:
 		return false
+	var trig: Dictionary = (beats[id] as Dictionary).get("trigger", {})
+	if bool(trig.get("once", false)) and int(fire_count.get(id, 0)) > 0:
+		return false
 	fired_day[id] = SimClock.sim_day
 	fire_count[id] = int(fire_count.get(id, 0)) + 1
 	var beat: Dictionary = beats[id]
@@ -211,6 +306,9 @@ func fire(id: String) -> bool:
 	seq.sequence_bark.connect(func(_agent: Node, line: String) -> void:
 		if director != null and is_instance_valid(director):
 			director.toast.emit(line))
+	seq.sequence_signal.connect(func(signal_name: StringName, _data: Dictionary) -> void:
+		if signal_name == &"runner_sees":
+			_runner_sees())
 	seq.completed.connect(seq.queue_free)
 	seq.interrupted.connect(func(reason: String) -> void:
 		print("[BEAT] %s interrupted: %s" % [id, reason])
@@ -223,6 +321,10 @@ func fire(id: String) -> bool:
 ## "nearest_garrison" or "nearest_garrison:<occupation>" - the living man closest to the
 ## player; anything else is a NodePath.
 func _resolve_actor(spec: String) -> Node:
+	if spec == "squad:point":
+		return _point_man()
+	if spec == "squad:second":
+		return _second_man()
 	if spec.begins_with("nearest_garrison"):
 		var want: String = spec.trim_prefix("nearest_garrison").trim_prefix(":")
 		var player: Node3D = GameManager.player as Node3D
